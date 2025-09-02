@@ -13,12 +13,17 @@ This file provides instructions for AI agents contributing to the **beautiful** 
 - Split DOCX into chapters: `python3 improved_docx_converter.py input.docx --split-chapters`
 
 ## Testing
+- Сначала прогоните линтер:
+  ```bash
+  make lint
+  ```
 - Tests cover both unit and integration behaviour under `tests/`.
 - Always run the full test suite before committing:
   ```bash
   python3 -m venv venv
   source venv/bin/activate
-  pip install -U pip python-docx pytest
+  pip install -U pip python-docx pytest flake8
+  make lint
   python3 -m pytest tests/ -v
   ```
 
