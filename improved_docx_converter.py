@@ -134,18 +134,13 @@ class ImprovedDocxToMarkdownConverter:
         return '\n'.join(self.markdown_lines)
     
     def _add_frontmatter(self):
-        """Добавляет frontmatter в начало документа"""
+        """Добавляет frontmatter в начало документа согласно правилам форматирования"""
         self.markdown_lines.extend([
             '---',
             'title: Заголовок документа',
-            '',
-            'readPrev:',
-            '  to: /path/to/prev',
-            '  label: Предыдущий раздел',
-            '',
-            'readNext:',
+            'nextRead:',
             '  to: /path/to/next',  
-            '  label: Следующий раздел',
+            '  label: Название следующей страницы',
             '---',
             ''
         ])
@@ -163,9 +158,8 @@ class ImprovedDocxToMarkdownConverter:
         # Проверяем, является ли это заголовком
         heading_level = self._is_heading(para)
         if heading_level:
-            # Убираем нумерацию из заголовка если есть
-            clean_text = re.sub(r'^[\d\.]+\s+', '', text)
-            self.markdown_lines.append(f"{'#' * heading_level} {clean_text}")
+            clean_text = self._format_heading(text, heading_level)
+            self.markdown_lines.append(clean_text)
             self.markdown_lines.append('')
             return
             
@@ -177,9 +171,11 @@ class ImprovedDocxToMarkdownConverter:
         elif self._is_code_block(para):
             self._process_code_block(para)
             
-        # Обработка примечаний
+        # Обработка примечаний согласно правилам форматирования
         elif text.startswith('Примечание'):
-            self.markdown_lines.append(f"> {text}")
+            # Форматируем как: > _Примечание_ – Текст примечания.
+            formatted_note = self._format_note(text)
+            self.markdown_lines.append(formatted_note)
             self.markdown_lines.append('')
             
         # Обычный параграф
@@ -666,9 +662,11 @@ class ImprovedDocxToMarkdownConverter:
         elif self._is_code_block(para):
             self._process_code_block(para)
             
-        # Обработка примечаний
+        # Обработка примечаний согласно правилам форматирования
         elif text.startswith('Примечание'):
-            self.markdown_lines.append(f"> {text}")
+            # Форматируем как: > _Примечание_ – Текст примечания.
+            formatted_note = self._format_note(text)
+            self.markdown_lines.append(formatted_note)
             self.markdown_lines.append('')
             
         # Обычный параграф
