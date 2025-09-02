@@ -23,6 +23,21 @@ class TestDocxConverter(unittest.TestCase):
         # Проверяем, что конвертер не падает при создании с несуществующим файлом
         with self.assertRaises(Exception):
             ImprovedDocxToMarkdownConverter("nonexistent.docx")
+
+    def test_docx_to_markdown_contains_text(self):
+        """Проверяем, что конвертация сохраняет содержимое из исходного DOCX"""
+        from docx import Document
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            doc_path = Path(tmpdir) / "sample.docx"
+            doc = Document()
+            doc.add_paragraph("Тестовое содержимое")
+            doc.save(doc_path)
+
+            converter = ImprovedDocxToMarkdownConverter(str(doc_path))
+            markdown = converter.convert()
+
+            self.assertIn("Тестовое содержимое", markdown)
             
     def test_heading_detection_patterns(self):
         """Тест определения заголовков на основе образцов"""
