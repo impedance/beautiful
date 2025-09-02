@@ -4,7 +4,6 @@
 Тесты для проверки правил форматирования DOCX to Markdown конвертера
 """
 
-import pytest
 import re
 from pathlib import Path
 
@@ -143,5 +142,42 @@ sign: <sign>
     assert "sign:" in image_block
     assert image_block.endswith("::")
 
+def run_all_tests():
+    """Запуск всех тестов"""
+    test_functions = [
+        test_frontmatter_structure,
+        test_heading_structure,
+        test_app_annotation_block,
+        test_lists_formatting,
+        test_table_formatting,
+        test_table_caption,
+        test_blockquote_notes,
+        test_inline_code,
+        test_internal_links,
+        test_line_breaks_in_tables,
+        test_section_numbering,
+        test_punctuation_in_lists,
+        test_technical_terms_formatting,
+        test_image_formatting
+    ]
+    
+    passed = 0
+    failed = 0
+    
+    for test_func in test_functions:
+        try:
+            test_func()
+            print(f"✓ {test_func.__name__}")
+            passed += 1
+        except Exception as e:
+            print(f"✗ {test_func.__name__}: {e}")
+            failed += 1
+    
+    print(f"\nТестов пройдено: {passed}")
+    print(f"Тестов провалилось: {failed}")
+    print(f"Всего тестов: {passed + failed}")
+    
+    return failed == 0
+
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    run_all_tests()
