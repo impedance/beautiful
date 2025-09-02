@@ -32,6 +32,20 @@ python3 improved-docx-converter.py input.docx [output.md]
 python3 improved-docx-converter.py input.docx output.md --frontmatter
 ```
 
+### Split into Chapters
+```bash
+python3 improved-docx-converter.py input.docx --split-chapters
+```
+
+### Run Tests
+```bash
+# Run all tests
+python3 -m pytest -v
+
+# Run tests in virtual environment
+source venv/bin/activate && python3 -m pytest -v
+```
+
 ## Architecture Notes
 
 The converter uses a multi-layered approach for document analysis:
