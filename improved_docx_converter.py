@@ -43,9 +43,18 @@ except Exception:
 
 import xml.etree.ElementTree as ET
 
+# Импорт функций исправления форматирования
+try:
+    from formatting_fixes import MarkdownFormatter
+except ImportError:
+    # Если модуль не найден, создаем заглушку
+    class MarkdownFormatter:
+        def transform_document(self, text):
+            return text
+
 
 class ImprovedDocxToMarkdownConverter:
-    def __init__(self, input_file: str, add_frontmatter: bool = False, split_chapters: bool = False):
+    def __init__(self, input_file: str, add_frontmatter: bool = False, split_chapters: bool = False, apply_formatting_fixes: bool = True):
         # При отсутствии ``python-docx`` и сгенерированном заглушечном классе
         # `Document` вызов конструктора не выбрасывает исключение для
         # несуществующих файлов. Тесты ожидают ошибку, поэтому явно
@@ -65,6 +74,7 @@ class ImprovedDocxToMarkdownConverter:
         self.in_code_block = False
         self.add_frontmatter = add_frontmatter
         self.split_chapters = split_chapters
+        self.apply_formatting_fixes = apply_formatting_fixes
         self.heading_map = self._build_heading_map()
         self.skip_next_paragraph = False
         self.chapters = []
@@ -173,7 +183,14 @@ class ImprovedDocxToMarkdownConverter:
             self.markdown_lines.append("```")
             self.markdown_lines.append('')
             
-        return '\n'.join(self.markdown_lines)
+        # Получаем базовый результат конвертации
+        raw_markdown = '\n'.join(self.markdown_lines)
+        
+        # Применяем исправления форматирования
+        if hasattr(self, 'apply_formatting_fixes') and self.apply_formatting_fixes:
+            raw_markdown = self._post_process_formatting(raw_markdown)
+            
+        return raw_markdown
     
     def _add_frontmatter(self):
         """Добавляет frontmatter в начало документа согласно правилам форматирования"""
@@ -922,7 +939,13 @@ class ImprovedDocxToMarkdownConverter:
             self.markdown_lines.append('')
         
         lines.extend(self.markdown_lines)
-        return "\n".join(lines)
+        raw_content = "\n".join(lines)
+        
+        # Применяем исправления форматирования
+        if self.apply_formatting_fixes:
+            raw_content = self._post_process_formatting(raw_content)
+            
+        return raw_content
     
     def _process_paragraph_content(self, para: Paragraph):
         """Обрабатывает параграф для главы"""
@@ -980,6 +1003,19 @@ class ImprovedDocxToMarkdownConverter:
             self.markdown_lines.append('| ' + ' | '.join(cells) + ' |')
             
         self.markdown_lines.append('')
+    
+    def _post_process_formatting(self, markdown_content: str) -> str:
+        """
+        Применяет исправления форматирования к результату конвертации
+        
+        Args:
+            markdown_content: Исходный markdown контент
+            
+        Returns:
+            Улучшенный markdown контент
+        """
+        formatter = MarkdownFormatter()
+        return formatter.transform_document(markdown_content)
 
 
 def main():
@@ -989,6 +1025,7 @@ def main():
         print("Опции:")
         print("  --frontmatter    - добавить frontmatter")
         print("  --split-chapters - разделить на главы")
+        print("  --no-fixes       - отключить исправления форматирования")
         sys.exit(1)
     
     input_file = sys.argv[1]
@@ -997,13 +1034,14 @@ def main():
     # Обрабатываем флаги
     add_frontmatter = '--frontmatter' in sys.argv
     split_chapters = '--split-chapters' in sys.argv
+    apply_formatting_fixes = '--no-fixes' not in sys.argv  # По умолчанию включено
     
     if not Path(input_file).exists():
         print(f"Файл {input_file} не найден")
         sys.exit(1)
     
     try:
-        converter = ImprovedDocxToMarkdownConverter(input_file, add_frontmatter, split_chapters)
+        converter = ImprovedDocxToMarkdownConverter(input_file, add_frontmatter, split_chapters, apply_formatting_fixes)
         
         if split_chapters:
             print(f"Разделение {input_file} на главы...")
