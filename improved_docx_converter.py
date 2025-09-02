@@ -53,7 +53,14 @@ class ImprovedDocxToMarkdownConverter:
         if not Path(input_file).exists():  # pragma: no cover - простая проверка
             raise FileNotFoundError(f"File {input_file} not found")
 
-        self.doc = Document(input_file)
+        try:
+            self.doc = Document(input_file)
+        except TypeError as e:
+            if "object() takes no arguments" in str(e):
+                raise ImportError(
+                    "python-docx библиотека не установлена. Установите её командой: pip install python-docx"
+                ) from e
+            raise
         self.markdown_lines = []
         self.in_code_block = False
         self.add_frontmatter = add_frontmatter
@@ -497,9 +504,15 @@ class ImprovedDocxToMarkdownConverter:
     
     def _is_chapter_header(self, text: str) -> bool:
         """Определяет, является ли текст заголовком главы"""
-        # Заголовок главы - это любой заголовок первого уровня 
-        # который содержит содержательный текст (не только служебная информация)
-        if len(text.strip()) < 5:  # Слишком короткий заголовок
+        # Заголовок главы - это заголовок первого уровня с номером
+        # Формат: "1. Название", "2. Название" и т.д.
+        
+        # Очищаем текст от табов и лишних пробелов
+        clean_text = re.sub(r'\t+', ' ', text)  # Заменяем табы на пробелы
+        clean_text = re.sub(r'\s+\d+\s*$', '', clean_text)  # Убираем номера страниц в конце
+        clean_text = re.sub(r'\s+', ' ', clean_text).strip()  # Нормализуем пробелы
+        
+        if len(clean_text.strip()) < 5:  # Слишком короткий заголовок
             return False
             
         # Исключаем служебные заголовки
@@ -513,10 +526,13 @@ class ImprovedDocxToMarkdownConverter:
         ]
         
         for pattern in excluded_patterns:
-            if re.search(pattern, text, re.IGNORECASE):
+            if re.search(pattern, clean_text, re.IGNORECASE):
                 return False
         
-        return True
+        # Проверяем формат нумерованной главы:
+        # 1. Формат "1. Название" - цифра + точка + пробел + название с заглавной буквы
+        # 2. Формат "1    Название" - цифра + пробелы/табы + название с заглавной буквы (из содержания)
+        return bool(re.match(r'^\d+[\.\s]+[А-ЯA-Z]', clean_text))
     
     def _extract_chapter_info(self, text: str) -> Dict[str, Any]:
         """Извлекает информацию о главе из заголовка"""
@@ -676,8 +692,12 @@ class ImprovedDocxToMarkdownConverter:
                     'element': Table(element, self.doc)
                 })
         
-        # Разделяем на главы
-        chapters = self._split_into_chapters(document_elements)
+        # Находим начало основного контента (исключаем содержание)
+        main_content_start = self._find_main_content_start(document_elements)
+        main_content_elements = document_elements[main_content_start:] if main_content_start > 0 else document_elements
+        
+        # Разделяем на главы только основной контент
+        chapters = self._split_into_chapters_from_main_content(main_content_elements)
         
         # Создаем файлы для каждой главы
         created_files = []
@@ -690,6 +710,140 @@ class ImprovedDocxToMarkdownConverter:
             print(f"Создана глава: {file_path}")
         
         return created_files
+    
+    def _find_main_content_start(self, document_elements: List[Dict]) -> int:
+        """Находит начало основного контента, исключая содержание"""
+        
+        # Ищем заголовок "СОДЕРЖАНИЕ"
+        toc_start = -1
+        for i, element in enumerate(document_elements):
+            if (element['type'] == 'heading' and 
+                'содержание' in element['text'].lower()):
+                toc_start = i
+                break
+        
+        if toc_start == -1:
+            # Если нет заголовка "СОДЕРЖАНИЕ", ищем характерные признаки содержания
+            # Много заголовков с табами и номерами страниц подряд
+            toc_like_count = 0
+            for i, element in enumerate(document_elements):
+                if (element['type'] == 'heading' and 
+                    '\t' in element['text'] and 
+                    element['text'][-1].isdigit()):
+                    toc_like_count += 1
+                    if toc_like_count >= 5:  # 5 или более заголовков с табами подряд
+                        toc_start = i - toc_like_count + 1
+                        break
+                else:
+                    toc_like_count = 0
+        
+        if toc_start == -1:
+            return 0  # Не найдено содержание, работаем со всем документом
+        
+        # Ищем конец содержания - первый заголовок без табов и номеров страниц
+        # или характерные фразы типа "Перечень сокращений"
+        for i in range(toc_start + 1, len(document_elements)):
+            element = document_elements[i]
+            
+            # Конец содержания - заголовок без табов
+            if (element['type'] == 'heading' and 
+                '\t' not in element['text'] and 
+                not element['text'][-1].isdigit()):
+                
+                # Проверяем что это не служебная информация
+                text_lower = element['text'].lower()
+                if any(keyword in text_lower for keyword in ['перечень', 'сокращений', 'список']):
+                    continue
+                    
+                return i
+                
+            # Или характерная фраза "Перечень сокращений"  
+            if element['type'] == 'paragraph':
+                text_lower = element['text'].lower()
+                if any(keyword in text_lower for keyword in ['перечень сокращений', 'список сокращений']):
+                    # Ищем следующий заголовок
+                    for j in range(i + 1, len(document_elements)):
+                        if document_elements[j]['type'] == 'heading':
+                            return j
+        
+        return toc_start  # Если не нашли конец, возвращаем начало содержания
+    
+    def _split_into_chapters_from_main_content(self, document_elements: List[Dict]) -> List[Dict]:
+        """Разделяет основной контент на главы (без содержания)"""
+        chapters = []
+        current_chapter = None
+        
+        # Ищем заголовки, которые являются началом глав в основном тексте
+        chapter_patterns = [
+            'общие сведения',
+            'архитектура комплекса',
+            'технические и программные требования', 
+            'технические требования',
+            'установка и запуск комплекса',
+            'установка и настройка',
+            'тонкая настройка операционной системы',
+            'мониторинг и диагностика',
+            'управление контентом через winter cms'
+        ]
+        
+        for element in document_elements:
+            is_new_chapter = False
+            
+            # Проверяем, является ли это заголовком новой главы
+            if element['type'] == 'heading':
+                text_lower = element['text'].lower().strip()
+                for pattern in chapter_patterns:
+                    if pattern in text_lower:
+                        is_new_chapter = True
+                        break
+            
+            if is_new_chapter:
+                # Сохраняем предыдущую главу
+                if current_chapter:
+                    chapters.append(current_chapter)
+                
+                # Создаем информацию о главе
+                chapter_title = element['text'].strip()
+                chapter_number = len(chapters) + 1
+                
+                # Определяем название файла
+                filename_map = {
+                    'общие сведения': 'common',
+                    'архитектура комплекса': 'architecture',
+                    'технические и программные требования': 'technical-requirements',
+                    'технические требования': 'technical-requirements', 
+                    'установка и запуск комплекса': 'installation-setup',
+                    'установка и настройка': 'installation-setup',
+                    'тонкая настройка операционной системы': 'system-setup',
+                    'мониторинг и диагностика': 'monitoring',
+                    'управление контентом через winter cms': 'winter-cms'
+                }
+                
+                base_name = 'chapter'
+                text_lower = chapter_title.lower()
+                for pattern, name in filename_map.items():
+                    if pattern in text_lower:
+                        base_name = name
+                        break
+                
+                # Начинаем новую главу
+                current_chapter = {
+                    'info': {
+                        'number': chapter_number,
+                        'title': chapter_title,
+                        'full_title': chapter_title
+                    },
+                    'filename': f"{chapter_number}.{base_name}.md",
+                    'elements': [element]
+                }
+            elif current_chapter:
+                current_chapter['elements'].append(element)
+        
+        # Добавляем последнюю главу
+        if current_chapter:
+            chapters.append(current_chapter)
+        
+        return chapters
     
     def _split_into_chapters(self, document_elements: List[Dict]) -> List[Dict]:
         """Разделяет элементы документа на главы"""
