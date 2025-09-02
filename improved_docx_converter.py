@@ -17,13 +17,16 @@ import xml.etree.ElementTree as ET
 
 
 class ImprovedDocxToMarkdownConverter:
-    def __init__(self, input_file: str, add_frontmatter: bool = False):
+    def __init__(self, input_file: str, add_frontmatter: bool = False, split_chapters: bool = False):
         self.doc = Document(input_file)
         self.markdown_lines = []
         self.in_code_block = False
         self.add_frontmatter = add_frontmatter
+        self.split_chapters = split_chapters
         self.heading_map = self._build_heading_map()
         self.skip_next_paragraph = False
+        self.chapters = []
+        self.current_chapter = None
         
     def _build_heading_map(self) -> Dict[str, int]:
         """Создает карту соответствия стилей заголовкам"""
@@ -371,34 +374,376 @@ class ImprovedDocxToMarkdownConverter:
                 self.markdown_lines.append('')
                 # Помечаем, что следующий параграф уже обработан
                 self.skip_next_paragraph = True
+    
+    def _is_chapter_header(self, text: str) -> bool:
+        """Определяет, является ли текст заголовком главы"""
+        # Заголовок главы - это любой заголовок первого уровня 
+        # который содержит содержательный текст (не только служебная информация)
+        if len(text.strip()) < 5:  # Слишком короткий заголовок
+            return False
+            
+        # Исключаем служебные заголовки
+        excluded_patterns = [
+            r'АО "НТЦ ИТ РОСА"',
+            r'ПРОГРАММНЫЙ КОМПЛЕКС',
+            r'ПОРТАЛ РАЗРАБОТЧИКА',
+            r'Версия \d+',
+            r'Руководство',
+            r'АННОТАЦИЯ'
+        ]
+        
+        for pattern in excluded_patterns:
+            if re.search(pattern, text, re.IGNORECASE):
+                return False
+        
+        return True
+    
+    def _extract_chapter_info(self, text: str) -> Dict[str, Any]:
+        """Извлекает информацию о главе из заголовка"""
+        # Очищаем текст от табов, номеров страниц и лишних пробелов
+        clean_text = re.sub(r'\t+', ' ', text)  # Заменяем табы на пробелы
+        clean_text = re.sub(r'\s+\d+\s*$', '', clean_text)  # Убираем номера страниц в конце
+        clean_text = re.sub(r'\s+', ' ', clean_text).strip()  # Нормализуем пробелы
+        
+        # Сначала пробуем формат "1. Название"
+        match = re.match(r'^(\d+)\.\s+(.+)$', clean_text)
+        if match:
+            return {
+                'number': int(match.group(1)),
+                'title': match.group(2).strip(),
+                'full_title': clean_text
+            }
+        
+        # Пробуем формат "1    Название"
+        match = re.match(r'^(\d+)\s+(.+)$', clean_text)
+        if match:
+            return {
+                'number': int(match.group(1)),
+                'title': match.group(2).strip(),
+                'full_title': clean_text
+            }
+        
+        # Если нет номера, используем счетчик глав
+        # Определяем номер главы по порядку появления
+        if not hasattr(self, '_chapter_counter'):
+            self._chapter_counter = 0
+        
+        self._chapter_counter += 1
+        chapter_num = self._chapter_counter
+        
+        return {
+            'number': chapter_num,
+            'title': clean_text,
+            'full_title': clean_text
+        }
+    
+    def _generate_chapter_filename(self, chapter_info: Dict[str, Any]) -> str:
+        """Генерирует имя файла для главы"""
+        chapter_num = chapter_info['number']
+        title = chapter_info['title']
+        
+        # Карта названий для известных глав
+        filename_map = {
+            "Общие сведения": "common",
+            "Архитектура комплекса": "architecture", 
+            "Технические и программные требования": "technical-requirements",
+            "Технические требования": "technical-requirements",
+            "Установка и запуск комплекса": "installation-setup",
+            "Установка и настройка": "installation-setup",
+            "Установка": "installation",
+            "Настройка": "setup",
+            "Тонкая настройка операционной системы": "system-setup",
+            "Эксплуатация": "operation",
+            "Администрирование": "administration",
+            "Мониторинг и диагностика": "monitoring",
+            "Мониторинг": "monitoring",
+            "Управление контентом через Winter CMS": "winter-cms"
+        }
+        
+        # Используем предустановленное название или генерируем из заголовка
+        base_name = filename_map.get(title)
+        if not base_name:
+            # Транслитерация и очистка названия
+            base_name = self._transliterate_title(title)
+        
+        return f"{chapter_num}.{base_name}.md"
+    
+    def _transliterate_title(self, title: str) -> str:
+        """Транслитерирует русский заголовок для имени файла"""
+        # Простая транслитерация основных символов
+        translit_map = {
+            'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'yo',
+            'ж': 'zh', 'з': 'z', 'и': 'i', 'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm',
+            'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't', 'у': 'u',
+            'ф': 'f', 'х': 'h', 'ц': 'ts', 'ч': 'ch', 'ш': 'sh', 'щ': 'sch',
+            'ъ': '', 'ы': 'y', 'ь': '', 'э': 'e', 'ю': 'yu', 'я': 'ya'
+        }
+        
+        result = title.lower()
+        for ru, en in translit_map.items():
+            result = result.replace(ru, en)
+        
+        # Очищаем от спецсимволов и заменяем пробелы на дефисы
+        result = re.sub(r'[^a-zA-Z0-9\s-]', '', result)
+        result = re.sub(r'\s+', '-', result)
+        result = re.sub(r'-+', '-', result)
+        return result.strip('-')
+    
+    def _generate_chapter_frontmatter(self, chapter_info: Dict[str, Any], total_chapters: int) -> str:
+        """Генерирует frontmatter для главы"""
+        lines = ["---", f"title: {chapter_info['title']}", ""]
+        
+        chapter_num = chapter_info['number']
+        
+        # Навигация к предыдущей главе
+        if chapter_num > 1:
+            lines.extend([
+                "readPrev:",
+                "  to: /path/to/prev",
+                "  label: Предыдущий раздел",
+                ""
+            ])
+        
+        # Навигация к следующей главе
+        if chapter_num < total_chapters:
+            lines.extend([
+                "nextRead:",
+                "  to: /path/to/next", 
+                "  label: Следующий раздел"
+            ])
+        
+        lines.append("---")
+        return "\n".join(lines)
+    
+    def convert_to_chapters(self, output_dir: str = None) -> List[str]:
+        """Конвертирует документ в отдельные файлы по главам"""
+        if not self.split_chapters:
+            raise ValueError("Режим разделения на главы не включен")
+        
+        # Определяем директорию вывода
+        if output_dir is None:
+            output_dir = Path.cwd() / "chapters"
+        else:
+            output_dir = Path(output_dir)
+        
+        output_dir.mkdir(exist_ok=True)
+        
+        # Собираем все элементы документа
+        document_elements = []
+        
+        for element in self.doc.element.body:
+            if element.tag.endswith('p'):
+                para = Paragraph(element, self.doc)
+                text = para.text.strip()
+                if text:
+                    heading_level = self._is_heading(para)
+                    if heading_level:
+                        document_elements.append({
+                            'type': 'heading',
+                            'level': heading_level,
+                            'text': text,
+                            'element': para
+                        })
+                    else:
+                        document_elements.append({
+                            'type': 'paragraph',
+                            'text': text,
+                            'element': para
+                        })
+            elif element.tag.endswith('tbl'):
+                document_elements.append({
+                    'type': 'table',
+                    'element': Table(element, self.doc)
+                })
+        
+        # Разделяем на главы
+        chapters = self._split_into_chapters(document_elements)
+        
+        # Создаем файлы для каждой главы
+        created_files = []
+        for chapter in chapters:
+            file_path = output_dir / chapter['filename']
+            content = self._generate_chapter_content(chapter, len(chapters))
+            
+            file_path.write_text(content, encoding='utf-8')
+            created_files.append(str(file_path))
+            print(f"Создана глава: {file_path}")
+        
+        return created_files
+    
+    def _split_into_chapters(self, document_elements: List[Dict]) -> List[Dict]:
+        """Разделяет элементы документа на главы"""
+        chapters = []
+        current_chapter = None
+        
+        for element in document_elements:
+            if (element['type'] == 'heading' and 
+                element['level'] == 1 and 
+                self._is_chapter_header(element['text'])):
+                
+                # Сохраняем предыдущую главу
+                if current_chapter:
+                    chapters.append(current_chapter)
+                
+                # Начинаем новую главу
+                chapter_info = self._extract_chapter_info(element['text'])
+                if chapter_info:
+                    current_chapter = {
+                        'info': chapter_info,
+                        'filename': self._generate_chapter_filename(chapter_info),
+                        'elements': [element]
+                    }
+            elif current_chapter:
+                current_chapter['elements'].append(element)
+        
+        # Добавляем последнюю главу
+        if current_chapter:
+            chapters.append(current_chapter)
+        
+        return chapters
+    
+    def _generate_chapter_content(self, chapter: Dict, total_chapters: int) -> str:
+        """Генерирует содержимое файла главы"""
+        lines = []
+        
+        # Добавляем frontmatter
+        frontmatter = self._generate_chapter_frontmatter(chapter['info'], total_chapters)
+        lines.append(frontmatter)
+        lines.append("")
+        
+        # Обрабатываем элементы главы
+        self.markdown_lines = []  # Сбрасываем буфер
+        self.in_code_block = False
+        
+        for element in chapter['elements']:
+            if element['type'] == 'heading':
+                level = element['level']
+                text = element['text']
+                
+                # Очищаем текст заголовка от табов и номеров страниц
+                clean_text = re.sub(r'\t+', ' ', text)
+                clean_text = re.sub(r'\s+\d+\s*$', '', clean_text)
+                clean_text = re.sub(r'\s+', ' ', clean_text).strip()
+                
+                # Для заголовка главы убираем нумерацию
+                if level == 1 and self._is_chapter_header(text):
+                    # Убираем номер главы из заголовка
+                    clean_text = re.sub(r'^\d+[\.\s]+', '', clean_text)
+                    self.markdown_lines.append(f"# {clean_text}")
+                else:
+                    self.markdown_lines.append(f"{'#' * level} {clean_text}")
+                self.markdown_lines.append('')
+                
+            elif element['type'] == 'paragraph':
+                para = element['element']
+                self._process_paragraph_content(para)
+                
+            elif element['type'] == 'table':
+                table = element['element']
+                self._process_table_content(table)
+        
+        # Закрываем блок кода если открыт
+        if self.in_code_block:
+            self.markdown_lines.append("```")
+            self.markdown_lines.append('')
+        
+        lines.extend(self.markdown_lines)
+        return "\n".join(lines)
+    
+    def _process_paragraph_content(self, para: Paragraph):
+        """Обрабатывает параграф для главы"""
+        text = para.text.strip()
+        if not text:
+            if not self.in_code_block:
+                self.markdown_lines.append('')
+            return
+        
+        # Обработка списков
+        if self._is_list_item(para):
+            self._process_list_item(para)
+            
+        # Обработка блоков кода
+        elif self._is_code_block(para):
+            self._process_code_block(para)
+            
+        # Обработка примечаний
+        elif text.startswith('Примечание'):
+            self.markdown_lines.append(f"> {text}")
+            self.markdown_lines.append('')
+            
+        # Обычный параграф
+        else:
+            formatted_text = self._format_inline_text(para)
+            if not self.in_code_block:
+                self.markdown_lines.append(formatted_text)
+                self.markdown_lines.append('')
+            else:
+                self.markdown_lines.append(formatted_text)
+    
+    def _process_table_content(self, table: Table):
+        """Обрабатывает таблицу для главы"""
+        if not table.rows:
+            return
+            
+        self.markdown_lines.append('')
+        
+        # Обработка заголовка таблицы
+        header_row = table.rows[0]
+        header_cells = [self._clean_cell_text(cell) for cell in header_row.cells]
+        self.markdown_lines.append('| ' + ' | '.join(header_cells) + ' |')
+        
+        # Разделитель
+        separator_parts = []
+        for cell in header_cells:
+            separator_parts.append('-' * max(3, len(cell)))
+        self.markdown_lines.append('| ' + ' | '.join(separator_parts) + ' |')
+        
+        # Строки данных
+        for row in table.rows[1:]:
+            cells = [self._clean_cell_text(cell) for cell in row.cells]
+            self.markdown_lines.append('| ' + ' | '.join(cells) + ' |')
+            
+        self.markdown_lines.append('')
 
 
 def main():
     """Главная функция"""
     if len(sys.argv) < 2:
-        print("Использование: python improved_docx_to_markdown.py input.docx [output.md]")
+        print("Использование: python improved_docx_to_markdown.py input.docx [output.md] [опции]")
+        print("Опции:")
+        print("  --frontmatter    - добавить frontmatter")
+        print("  --split-chapters - разделить на главы")
         sys.exit(1)
     
     input_file = sys.argv[1]
     output_file = sys.argv[2] if len(sys.argv) > 2 else input_file.replace('.docx', '.md')
     
-    # Добавляем флаг для frontmatter
+    # Обрабатываем флаги
     add_frontmatter = '--frontmatter' in sys.argv
+    split_chapters = '--split-chapters' in sys.argv
     
     if not Path(input_file).exists():
         print(f"Файл {input_file} не найден")
         sys.exit(1)
     
-    print(f"Конвертация {input_file} -> {output_file}")
-    
     try:
-        converter = ImprovedDocxToMarkdownConverter(input_file, add_frontmatter)
-        markdown_content = converter.convert()
+        converter = ImprovedDocxToMarkdownConverter(input_file, add_frontmatter, split_chapters)
         
-        with open(output_file, 'w', encoding='utf-8') as f:
-            f.write(markdown_content)
+        if split_chapters:
+            print(f"Разделение {input_file} на главы...")
+            output_dir = Path(output_file).parent / "chapters" if output_file != input_file.replace('.docx', '.md') else Path("chapters")
+            created_files = converter.convert_to_chapters(str(output_dir))
+            print(f"✅ Успешно создано {len(created_files)} файлов глав:")
+            for file_path in created_files:
+                print(f"  - {file_path}")
+        else:
+            print(f"Конвертация {input_file} -> {output_file}")
+            markdown_content = converter.convert()
             
-        print(f"✅ Успешно сконвертировано! Результат сохранен в {output_file}")
+            with open(output_file, 'w', encoding='utf-8') as f:
+                f.write(markdown_content)
+                
+            print(f"✅ Успешно сконвертировано! Результат сохранен в {output_file}")
         
     except Exception as e:
         print(f"❌ Ошибка при конвертации: {e}")
