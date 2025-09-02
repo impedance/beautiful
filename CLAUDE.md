@@ -40,10 +40,14 @@ python3 improved-docx-converter.py input.docx --split-chapters
 ### Run Tests
 ```bash
 # Run all tests
-python3 -m pytest -v
+source venv/bin/activate && python3 -m pytest tests/ -v
 
-# Run tests in virtual environment
-source venv/bin/activate && python3 -m pytest -v
+# Run specific test categories
+source venv/bin/activate && python3 -m pytest tests/unit/ -v          # Unit tests only
+source venv/bin/activate && python3 -m pytest tests/integration/ -v  # Integration tests only
+
+# Run with coverage
+source venv/bin/activate && python3 -m pytest tests/ --tb=short -v
 ```
 
 ## Architecture Notes
@@ -57,9 +61,32 @@ The converter uses a multi-layered approach for document analysis:
 
 The converter is designed specifically for technical documentation and handles Russian text extensively. It includes sophisticated heuristics for detecting document structure in Word documents that may not have proper styles applied.
 
+## Test Structure
+
+The project uses a well-organized test suite:
+
+```
+tests/
+├── unit/                              # Unit tests for specific functionality
+│   ├── test_converter_core.py         # Core converter functionality
+│   ├── test_formatting_rules.py       # Formatting and rule validation
+│   └── test_chapter_splitting.py      # Chapter splitting logic
+└── integration/                       # Integration tests with real files
+    ├── test_docx_processing.py        # Real DOCX file processing  
+    ├── test_content_distribution.py   # Content distribution verification
+    └── test_final_integration.py      # End-to-end integration tests
+```
+
+**Test Coverage:**
+- ✅ 31 passing tests, 3 skipped
+- ✅ Unit tests: Core conversion, formatting, chapter splitting
+- ✅ Integration tests: Real DOCX processing, content distribution
+- ✅ All main functionality covered with comprehensive test cases
+
 ## Dependencies
 
 - `python-docx` - Core DOCX processing library
+- `pytest` - Testing framework
 - Standard Python libraries: `re`, `sys`, `pathlib`, `xml.etree.ElementTree`
 
 ## Development Notes

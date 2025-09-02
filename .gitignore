@@ -1,4 +1,4 @@
 .venv
-__pycache__/improved_docx_converter.cpython-312.pyc
+__pycache__
 venv
-docx/__pycache__/__init__.cpython-312.pyc
+docx/__pycache__
