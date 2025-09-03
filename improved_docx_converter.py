@@ -414,13 +414,38 @@ class ImprovedDocxToMarkdownConverter:
         return self._apply_special_formatting(formatted)
 
     def _apply_special_formatting(self, text: str) -> str:
-        """Добавляет оформление для сервисов и имён файлов"""
+        """Добавляет оформление для специальных конструкций"""
         # Имена файлов с расширениями оборачиваем в ``
         text = re.sub(
             r"(?<!`)(\b[\w.-]+\.(?:ya?ml|conf|ini|sh|py|txt)\b)(?!`)",
             r"`\1`",
             text,
         )
+
+        # Плейсхолдеры вида <PLACEHOLDER> оформляем как код
+        text = re.sub(r"(?<!`)(<[^>]+>)(?!`)", r"`\1`", text)
+
+        # Конвертация ссылок в markdown-формат
+        # (описание: http://example.com) -> ([описание](http://example.com))
+        text = re.sub(
+            r"\(([^()]+?):\s*(https?://[^\s)]+)\)",
+            lambda m: f"([{m.group(1)}]({m.group(2)}))",
+            text,
+        )
+        # "... в описание: http://example.com" -> "... в [описание](http://example.com)"
+        text = re.sub(
+            r"в ([^:]+):\s*(https?://\S+)",
+            lambda m: f"в [{m.group(1)}]({m.group(2)})",
+            text,
+        )
+
+        # Пути к файлам/директориям
+        text = re.sub(
+            r"(?<!`)(/(?:opt|etc|var)[\w./-]*)(?!`)",
+            r"`\1`",
+            text,
+        )
+
         # Названия сервисов после слова "сервис" также оборачиваем
         text = re.sub(
             r"(?i)(\b(?:сервис[а-я]*|service)\s+)([A-Za-z0-9_-]+)",
@@ -452,19 +477,37 @@ class ImprovedDocxToMarkdownConverter:
     
     def _process_list_item(self, para):
         """Обработка элемента списка"""
-        text = para.text.strip()
-        
+        # Применяем inline-форматирование ко всему параграфу
+        text = self._format_inline_text(para).strip()
+
         # Определяем уровень вложенности
         indent_level = self._get_indent_level(para)
         indent = '  ' * indent_level
-        
-        # Удаляем маркеры из текста
-        text = re.sub(r'^[-•*−]\s*', '', text)
-        text = re.sub(r'^[a-zа-я]\)\s*', '', text)
-        text = re.sub(r'^\d+\)\s*', '', text)
-        
-        # В markdown используем простые маркеры
-        self.markdown_lines.append(f"{indent}- {text}")
+
+        # Проверяем тип маркера
+        letter_match = re.match(r'^([a-zа-я])\)\s*', text, re.I)
+        number_match = re.match(r'^(\d+)\)\s*', text)
+
+        if letter_match:
+            letter = letter_match.group(1).lower()
+            text = text[letter_match.end():]
+            # Преобразуем русские буквы в латиницу
+            mapping = {
+                'а': 'a', 'б': 'b', 'в': 'c', 'г': 'd', 'д': 'e', 'е': 'f',
+                'ж': 'g', 'з': 'h', 'и': 'i', 'й': 'j', 'к': 'k', 'л': 'l',
+                'м': 'm', 'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r', 'с': 's',
+                'т': 't', 'у': 'u', 'ф': 'f', 'х': 'h', 'ц': 'c', 'ч': 'ch',
+                'ш': 'sh', 'щ': 'shch', 'ы': 'y', 'э': 'e', 'ю': 'yu', 'я': 'ya'
+            }
+            letter = mapping.get(letter, letter)
+            self.markdown_lines.append(f"{indent}{letter}. {text}")
+        elif number_match:
+            number = number_match.group(1)
+            text = text[number_match.end():]
+            self.markdown_lines.append(f"{indent}{number}. {text}")
+        else:
+            text = re.sub(r'^[-•*−]\s*', '', text)
+            self.markdown_lines.append(f"{indent}- {text}")
     
     def _is_code_block(self, para) -> bool:
         """Проверка, является ли параграф блоком кода"""
