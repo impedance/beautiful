@@ -240,11 +240,16 @@ class ImprovedDocxToMarkdownConverter:
         # Обычный параграф
         else:
             formatted_text = self._format_inline_text(para)
-            if not self.in_code_block:
-                self.markdown_lines.append(formatted_text)
-                self.markdown_lines.append('')
-            else:
-                self.markdown_lines.append(formatted_text)
+            # Удаляем маркеры AppAnnotation из отформатированного текста
+            formatted_text = self._remove_app_annotation_markers(formatted_text)
+            
+            # Проверяем, что после удаления маркеров текст не пустой
+            if formatted_text:
+                if not self.in_code_block:
+                    self.markdown_lines.append(formatted_text)
+                    self.markdown_lines.append('')
+                else:
+                    self.markdown_lines.append(formatted_text)
     
     def _process_table(self, element):
         """Обработка таблицы"""
@@ -308,7 +313,16 @@ class ImprovedDocxToMarkdownConverter:
 
     def _format_app_annotation(self, text: str) -> str:
         """Создаёт блок ``AppAnnotation``."""
-        return f"::AppAnnotation\n{text}\n::"
+        # AppAnnotation больше не используется, возвращаем текст как есть
+        return text
+    
+    def _remove_app_annotation_markers(self, text: str) -> str:
+        """Удаляет маркеры ::AppAnnotation и :: из текста."""
+        # Удаляем все вхождения ::AppAnnotation и одинарные ::
+        text = text.replace("::AppAnnotation", "")
+        text = text.replace("::", "")
+        # Убираем лишние пробелы и пустые строки
+        return text.strip()
 
     def _format_list(self, items: List[str]) -> str:
         """Форматирует маркированный список.
@@ -519,9 +533,19 @@ class ImprovedDocxToMarkdownConverter:
         if language == 'yaml':
             if 'version:' in text and 'services:' in text:
                 return 'docker-compose.yaml'
+            # Общие YAML конфиги
+            return ''
         elif language == 'bash':
             if text.startswith('#!/bin/bash'):
                 return 'script.sh'
+            # Для обычных bash команд возвращаем Terminal
+            return 'Terminal'
+        elif language == 'conf':
+            if '[main]' in text:
+                return 'tuned.conf'
+        elif language == 'ini':
+            # Общие INI файлы
+            return ''
         return ''
     
     def _should_end_code_block(self, para) -> bool:
@@ -556,7 +580,10 @@ class ImprovedDocxToMarkdownConverter:
             return 'bash'
         elif 'version:' in text or 'services:' in text or self._is_yaml_content(text):
             return 'yaml'
-        elif text.startswith('[') and ']' in text:
+        elif text.startswith('[') and ']' in text and ('=' in text):
+            # Различаем conf файлы от обычного текста в скобках
+            if '[main]' in text or 'include =' in text:
+                return 'conf'
             return 'ini'
         elif any(sql in text.upper() for sql in ['CREATE', 'SELECT', 'INSERT']):
             return 'sql'
@@ -1039,11 +1066,16 @@ class ImprovedDocxToMarkdownConverter:
         # Обычный параграф
         else:
             formatted_text = self._format_inline_text(para)
-            if not self.in_code_block:
-                self.markdown_lines.append(formatted_text)
-                self.markdown_lines.append('')
-            else:
-                self.markdown_lines.append(formatted_text)
+            # Удаляем маркеры AppAnnotation из отформатированного текста
+            formatted_text = self._remove_app_annotation_markers(formatted_text)
+            
+            # Проверяем, что после удаления маркеров текст не пустой
+            if formatted_text:
+                if not self.in_code_block:
+                    self.markdown_lines.append(formatted_text)
+                    self.markdown_lines.append('')
+                else:
+                    self.markdown_lines.append(formatted_text)
     
     def _process_table_content(self, table: Table):
         """Обрабатывает таблицу для главы"""
