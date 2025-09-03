@@ -459,7 +459,37 @@ class ImprovedDocxToMarkdownConverter:
             'function ', 'class ', 'def ', 'import ',
             'version:', 'services:', '{', '}'
         ]
-        return any(text.startswith(ind) for ind in code_indicators)
+        
+        # Проверяем обычные индикаторы
+        if any(text.startswith(ind) for ind in code_indicators):
+            return True
+        
+        # Специальная проверка для YAML контента
+        if self._is_yaml_content(text):
+            return True
+            
+        return False
+    
+    def _is_yaml_content(self, text: str) -> bool:
+        """Проверяет, является ли текст YAML содержимым"""
+        if not text:
+            return False
+            
+        # YAML ключи с двоеточием
+        yaml_patterns = [
+            r'^\s*[\w-]+:(\s|$)',  # ключ: (включая дефисы)
+            r'^\s*-\s+[\w-]+:',    # - ключ:
+            r'^\s*-\s+[\w"]',      # - значение
+            r'^\s*image:',         # image:
+            r'^\s*restart:',       # restart:
+            r'^\s*command:',       # command:
+            r'^\s*ports:',         # ports:
+            r'^\s*volumes:',       # volumes:
+            r'^\s*labels:',        # labels:
+            r'^\s*environment:',   # environment:
+        ]
+        
+        return any(re.match(pattern, text) for pattern in yaml_patterns)
     
     def _process_code_block(self, para):
         """Обработка блока кода"""
@@ -467,29 +497,64 @@ class ImprovedDocxToMarkdownConverter:
         
         if not self.in_code_block:
             language = self._detect_code_language(text)
-            self.markdown_lines.append(f"```{language}")
+            filename = self._detect_code_filename(text, language)
+            if filename:
+                self.markdown_lines.append(f"```{language} {filename}")
+            else:
+                self.markdown_lines.append(f"```{language}")
             self.in_code_block = True
             
         self.markdown_lines.append(text)
         
         # Проверяем, конец ли блока кода
-        # (следующий элемент не код)
+        # Для YAML и других структурированных форматов более консервативно определяем конец
+        should_end = self._should_end_code_block(para)
+        if should_end:
+            self.markdown_lines.append("```")
+            self.markdown_lines.append('')
+            self.in_code_block = False
+    
+    def _detect_code_filename(self, text: str, language: str) -> str:
+        """Определяет имя файла для блока кода"""
+        if language == 'yaml':
+            if 'version:' in text and 'services:' in text:
+                return 'docker-compose.yaml'
+        elif language == 'bash':
+            if text.startswith('#!/bin/bash'):
+                return 'script.sh'
+        return ''
+    
+    def _should_end_code_block(self, para) -> bool:
+        """Определяет, следует ли закончить блок кода"""
         next_element = para._element.getnext()
-        if next_element is not None:
-            try:
-                next_para = Paragraph(next_element, self.doc)
-                if not self._is_code_block(next_para):
-                    self.markdown_lines.append("```")
-                    self.markdown_lines.append('')
-                    self.in_code_block = False
-            except:
-                pass
+        if next_element is None:
+            return True
+            
+        try:
+            next_para = Paragraph(next_element, self.doc)
+            next_text = next_para.text.strip()
+            
+            # Если следующий элемент не код, заканчиваем блок
+            if not self._is_code_block(next_para):
+                return True
+                
+            # Специальная логика для YAML:
+            # Если следующая строка не YAML и не пустая, заканчиваем блок
+            current_text = para.text.strip()
+            if self._is_yaml_content(current_text):
+                # Проверяем, что следующая строка тоже YAML или пустая
+                if next_text and not self._is_yaml_content(next_text) and not self._is_code_block(next_para):
+                    return True
+                    
+            return False
+        except:
+            return True
     
     def _detect_code_language(self, text: str) -> str:
         """Определение языка программирования"""
         if any(text.startswith(cmd) for cmd in ['sudo', 'docker', 'systemctl', '$', 'git', '#!/bin/bash']):
             return 'bash'
-        elif 'version:' in text or 'services:' in text:
+        elif 'version:' in text or 'services:' in text or self._is_yaml_content(text):
             return 'yaml'
         elif text.startswith('[') and ']' in text:
             return 'ini'

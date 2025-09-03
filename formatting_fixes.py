@@ -33,7 +33,7 @@ def fix_heading_levels(text: str, is_main_chapter: bool = False) -> str:
 
 def restore_section_numbering(sections: List[str], chapter_structure: Dict[int, int]) -> List[str]:
     """
-    Восстанавливает нумерацию разделов согласно структуре
+    Восстанавливает нумерацию разделов согласно структуре (старая плоская версия)
     
     Args:
         sections: Список заголовков разделов
@@ -61,6 +61,156 @@ def restore_section_numbering(sections: List[str], chapter_structure: Dict[int, 
                 section_idx += 1
     
     return result
+
+def restore_hierarchical_numbering(headings: List[str], chapter_number: int = 4) -> List[str]:
+    """
+    Восстанавливает иерархическую нумерацию заголовков
+    
+    Args:
+        headings: Список заголовков с уровнями (##, ###, ####)
+        chapter_number: Номер главы
+    
+    Returns:
+        Список заголовков с правильной иерархической нумерацией
+    """
+    result = []
+    counters = [chapter_number, 0, 0, 0]  # [глава, раздел, подраздел, подподраздел]
+    
+    for heading in headings:
+        if not heading.strip():
+            continue
+            
+        # Определяем уровень заголовка
+        if heading.startswith('####'):
+            level = 4
+        elif heading.startswith('###'):  
+            level = 3
+        elif heading.startswith('##'):
+            level = 2
+        else:
+            result.append(heading)
+            continue
+        
+        # Обновляем счетчики
+        if level == 2:
+            counters[1] += 1
+            counters[2] = 0
+            counters[3] = 0
+        elif level == 3:
+            counters[2] += 1
+            counters[3] = 0
+        elif level == 4:
+            counters[3] += 1
+        
+        # Извлекаем название заголовка без разметки и старой нумерации
+        heading_text = heading
+        heading_text = re.sub(r'^#+\s*', '', heading_text)  # убираем ##
+        heading_text = re.sub(r'^\d+(\.\d+)*\s+', '', heading_text)  # убираем старую нумерацию
+        
+        # Формируем новую нумерацию
+        if level == 2:
+            new_number = f"{counters[0]}.{counters[1]}"
+            new_heading = f"## {new_number} {heading_text}"
+        elif level == 3:
+            new_number = f"{counters[0]}.{counters[1]}.{counters[2]}"
+            new_heading = f"### {new_number} {heading_text}"
+        elif level == 4:
+            new_number = f"{counters[0]}.{counters[1]}.{counters[2]}.{counters[3]}"
+            new_heading = f"#### {new_number} {heading_text}"
+        
+        result.append(new_heading)
+    
+    return result
+
+def fix_appannotation_usage(markdown_text: str) -> str:
+    """
+    Исправляет использование AppAnnotation блоков - убирает их из середины документа,
+    оставляя только в самом начале (если необходимо)
+    
+    Args:
+        markdown_text: Текст markdown с AppAnnotation блоками
+        
+    Returns:
+        Исправленный текст без лишних AppAnnotation блоков
+    """
+    lines = markdown_text.split('\n')
+    result_lines = []
+    in_appannotation = False
+    first_content_line = False  # Отслеживаем первый содержательный блок
+    
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        
+        # Пропускаем frontmatter
+        if line.strip() == '---':
+            result_lines.append(line)
+            i += 1
+            continue
+        
+        # Пропускаем заголовок документа
+        if line.startswith('# '):
+            result_lines.append(line)
+            first_content_line = True
+            i += 1
+            continue
+            
+        # Обрабатываем AppAnnotation блоки
+        if line.strip() == '::AppAnnotation':
+            in_appannotation = True
+            
+            # Если это не самый первый контентный блок, просто убираем блок
+            if first_content_line:
+                # Ищем закрывающий тег и просто добавляем содержимое как обычный текст
+                i += 1
+                annotation_content = []
+                while i < len(lines) and lines[i].strip() != '::':
+                    annotation_content.append(lines[i])
+                    i += 1
+                
+                # Добавляем содержимое как обычный параграф
+                if annotation_content:
+                    result_lines.extend(annotation_content)
+                
+                # Пропускаем закрывающий ::
+                if i < len(lines) and lines[i].strip() == '::':
+                    i += 1
+                
+                in_appannotation = False
+                continue
+            else:
+                # Это первый блок - убираем AppAnnotation но оставляем содержимое
+                i += 1
+                annotation_content = []
+                while i < len(lines) and lines[i].strip() != '::':
+                    annotation_content.append(lines[i])
+                    i += 1
+                
+                # Добавляем содержимое как обычный параграф
+                result_lines.extend(annotation_content)
+                first_content_line = True
+                
+                # Пропускаем закрывающий ::
+                if i < len(lines) and lines[i].strip() == '::':
+                    i += 1
+                
+                in_appannotation = False
+                continue
+        
+        elif line.strip() == '::' and in_appannotation:
+            in_appannotation = False
+            i += 1
+            continue
+            
+        else:
+            if not in_appannotation:
+                result_lines.append(line)
+                if line.strip() and not line.startswith(('---', '#')):
+                    first_content_line = True
+        
+        i += 1
+    
+    return '\n'.join(result_lines)
 
 def detect_and_wrap_appannotations(text: str) -> str:
     """
@@ -301,7 +451,10 @@ class MarkdownFormatter:
         # 1. Исправляем frontmatter
         result = fix_frontmatter_format(markdown_text)
         
-        # 2. Разбиваем на секции и группируем последовательные абзацы
+        # 2. Исправляем использование AppAnnotation блоков
+        result = fix_appannotation_usage(result)
+        
+        # 3. Разбиваем на секции и группируем последовательные абзацы
         raw_sections = result.split('\n\n')
         sections = []
         buffer = []
@@ -330,7 +483,7 @@ class MarkdownFormatter:
 
         transformed_sections = []
 
-        h2_sections = []  # Собираем H2 заголовки для нумерации
+        all_headings = []  # Собираем ВСЕ заголовки для иерархической нумерации
 
         for section in sections:
             section = section.strip()
@@ -343,16 +496,12 @@ class MarkdownFormatter:
                 # Простая эвристика: первый H3 - это главный заголовок
                 is_main = len([s for s in transformed_sections if s.startswith('#')]) == 0
                 fixed_heading = fix_heading_levels(section, is_main)
-
-                if fixed_heading.startswith('##'):
-                    h2_sections.append(fixed_heading)
-
+                all_headings.append(fixed_heading)
                 transformed_sections.append(fixed_heading)
-            elif section.startswith('##'):
-                # Удаляем существующую нумерацию и сохраняем для пере-нумерации
-                clean_heading = re.sub(r'^##\s*\d+\.\d+\s+', '## ', section)
-                h2_sections.append(clean_heading)
-                transformed_sections.append(clean_heading)
+            elif section.startswith('##') or section.startswith('####'):
+                # Собираем ВСЕ заголовки для иерархической обработки
+                all_headings.append(section)
+                transformed_sections.append(section)
             
             # Обрабатываем списки
             elif ';' in section and not section.startswith('-'):
@@ -396,17 +545,15 @@ class MarkdownFormatter:
             else:
                 transformed_sections.append(section)
         
-        # 4. Восстанавливаем нумерацию разделов
-        if h2_sections:
-            # Определяем структуру для текущей главы
-            chapter_structure = {chapter_number: len(h2_sections)}
-            numbered_sections = restore_section_numbering(h2_sections, chapter_structure)
+        # 5. Восстанавливаем иерархическую нумерацию заголовков
+        if all_headings:
+            numbered_headings = restore_hierarchical_numbering(all_headings, chapter_number)
             
-            # Заменяем в результате
-            section_idx = 0
+            # Заменяем заголовки в результате
+            heading_idx = 0
             for i, section in enumerate(transformed_sections):
-                if section.startswith('##') and section_idx < len(numbered_sections):
-                    transformed_sections[i] = numbered_sections[section_idx]
-                    section_idx += 1
+                if (section.startswith('##') or section.startswith('###') or section.startswith('####')) and heading_idx < len(numbered_headings):
+                    transformed_sections[i] = numbered_headings[heading_idx]
+                    heading_idx += 1
         
         return '\n\n'.join(transformed_sections)
