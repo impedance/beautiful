@@ -300,8 +300,38 @@ class MarkdownFormatter:
         """
         # 1. Исправляем frontmatter
         result = fix_frontmatter_format(markdown_text)
-        
-        # 2. Разбиваем на секции для обработки
+
+        # 2. Собираем блоки абзацев, заканчивающихся ';' или '.',
+        #    без пустых строк между ними, и преобразуем их в списки
+        lines = result.split('\n')
+        preprocessed_lines = []
+        block_lines: List[str] = []
+
+        def flush_block(add_blank_line: bool = False) -> None:
+            nonlocal block_lines, preprocessed_lines
+            if block_lines:
+                block_text = '\n\n'.join(block_lines)
+                converted = convert_paragraphs_to_lists(block_text)
+                preprocessed_lines.extend(converted.split('\n'))
+                if add_blank_line:
+                    preprocessed_lines.append('')
+                block_lines = []
+
+        for line in lines:
+            stripped = line.strip()
+            if stripped == '':
+                flush_block()
+                preprocessed_lines.append('')
+            elif not stripped.startswith('-') and stripped.endswith((';', '.')):
+                block_lines.append(stripped)
+            else:
+                flush_block(add_blank_line=True)
+                preprocessed_lines.append(line)
+
+        flush_block()
+        result = '\n'.join(preprocessed_lines).strip()
+
+        # 3. Разбиваем на секции для обработки
         sections = result.split('\n\n')
         transformed_sections = []
         
@@ -367,7 +397,7 @@ class MarkdownFormatter:
             else:
                 transformed_sections.append(section)
         
-        # 3. Восстанавливаем нумерацию разделов
+        # 4. Восстанавливаем нумерацию разделов
         if h2_sections:
             # Определяем структуру для текущей главы
             chapter_structure = {chapter_number: len(h2_sections)}
