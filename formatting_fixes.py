@@ -251,12 +251,15 @@ def convert_paragraphs_to_lists(text: str) -> str:
     if text.strip().startswith('- '):
         return text
     
-    # Разбиваем на абзацы
+    # Сначала пытаемся разбить по пустой строке
     paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
-    
+
+    # Если это не дало нескольких элементов, пробуем разбивку по строкам
+    if len(paragraphs) < 2:
+        paragraphs = [p.strip() for p in text.split('\n') if p.strip()]
+
     # Проверяем что это последовательность элементов списка
     if len(paragraphs) >= 2:
-        # Все элементы должны заканчиваться на ; кроме последнего на .
         is_list = True
         for i, para in enumerate(paragraphs):
             if i < len(paragraphs) - 1:
@@ -267,14 +270,10 @@ def convert_paragraphs_to_lists(text: str) -> str:
                 if not para.endswith('.'):
                     is_list = False
                     break
-        
+
         if is_list:
-            # Преобразуем в список
-            result = []
-            for para in paragraphs:
-                result.append(f"- {para}")
-            return '\n'.join(result)
-    
+            return '\n'.join(f"- {para}" for para in paragraphs)
+
     return text
 
 def format_technical_components(text: str) -> str:
@@ -496,7 +495,8 @@ class MarkdownFormatter:
                 # Простая эвристика: первый H3 - это главный заголовок
                 is_main = len([s for s in transformed_sections if s.startswith('#')]) == 0
                 fixed_heading = fix_heading_levels(section, is_main)
-                all_headings.append(fixed_heading)
+                if fixed_heading.startswith(('##', '###', '####')):
+                    all_headings.append(fixed_heading)
                 transformed_sections.append(fixed_heading)
             elif section.startswith('##') or section.startswith('####'):
                 # Собираем ВСЕ заголовки для иерархической обработки
