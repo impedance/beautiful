@@ -1,0 +1,98 @@
+нужно внести правила форматирования в конвертер, в блоках <now> - то что идет из файла dev.docx, в блоках <shouldbe> - то как должно быть в конечном сконвертированном файле markdown
+соответственно, нужно корректно обработать входящие списки, ссылки, выделения кода в markdown? далее идут примеры вариантов как должно быть 
+
+<now>
+где необходимо заменить следующие переменные:
+    - <LE info email> — адрес электронной почты для получения уведомлений от файла хранения данных Lets Encrypt;
+    - <TRAEFIK DASHBOARD URL> — адрес веб-интерфейса Traefik;
+    - <ADMIN USER> — логин администратора;
+    - <HASHED PASS> — хеш пароля (формирование описано в официальной документации: https://doc.traefik.io/traefik/middlewares/http/basicauth/).
+</now>
+
+<shouldbe>
+где необходимо заменить следующие переменные:
+
+- `<LE info email>` — адрес электронной почты для получения уведомлений от файла хранения данных Lets Encrypt;
+- `<TRAEFIK DASHBOARD URL>` — адрес веб-интерфейса `Traefik`;
+- `<ADMIN USER>` — логин администратора;
+- `<HASHED PASS>` — хеш пароля ([формирование описано в официальной документации](https://doc.traefik.io/traefik/middlewares/http/basicauth/)).
+</shouldbe>
+
+<now>
+    б) Создать структуру директорий /opt/devstg.rosa.ru/traefik/ssl/ и разместить в ней TLS-сертификат и закрытый ключ. Структура новой директории представлена ниже (рисунок 1 ).
+
+Рисунок 1 – Пример структуры директории /opt/devstg.rosa.ru/traefik/ssl/
+</now>
+
+<shouldbe>
+b. Создать структуру директорий `/opt/devstg.rosa.ru/traefik/ssl/` и разместить в ней TLS-сертификат и закрытый ключ.
+Структура новой директории представлена ниже (рисунок 1 ).
+
+::sign-image
+---
+src: /images/developer/administrator/install-and-launch/picture_1.png
+sign: Рисунок 1 – Пример структуры директории /opt/devstg.rosa.ru/traefik/ssl/
+---
+::
+</shouldbe>
+
+<now>
+    в) Создать конфигурационный файл /opt/devstg.rosa.ru/traefik/traefik.yml:
+tls:
+  certificates:
+    - certFile: /opt/traefik/ssl/cert.pem
+      keyFile: /opt/traefik/ssl/key.pem
+      stores:
+        - default
+</now>
+
+<shouldbe>
+c. Создать конфигурационный файл `/opt/devstg.rosa.ru/traefik/traefik.yml`:
+
+```yaml
+tls:
+  certificates:
+    - certFile: /opt/traefik/ssl/cert.pem
+      keyFile: /opt/traefik/ssl/key.pem
+      stores:
+        - default
+```
+</shouldbe>
+
+<now>
+Подробности о работе с TLS-сертификатами приведены в официальной документации разработчиков сервиса: https://doc.traefik.io/traefik/https/tls/
+</now>
+
+<shouldbe>
+Подробности о работе с TLS-сертификатами приведены в [официальной документации разработчиков сервиса](https://doc.traefik.io/traefik/https/tls/)
+</shouldbe>
+
+<now>
+Для обеспечения долговременного хранения данных необходимо создать тома Docker (Docker volume), в которых будут размещаться:
+    - журналы работы (logs);
+    - файлы приложения (app);
+    - темы оформления интерфейса (themes);
+    - исходный код и конфигурации (code).
+</now>
+
+<shouldbe>
+Для обеспечения долговременного хранения данных необходимо создать тома `Docker` (`Docker volume`), 
+в которых будут размещаться:
+
+- журналы работы (logs);
+- файлы приложения (app);
+- темы оформления интерфейса (themes);
+- исходный код и конфигурации (code).
+</shouldbe>
+
+<now>
+        4.3 Запуск Комплекса
+        4.3.1 Загрузка через командную строку
+</now>
+
+<shouldbe>
+
+## 4.3 Запуск Комплекса
+
+### 4.3.1 Загрузка через командную строку
+</shouldbe>
