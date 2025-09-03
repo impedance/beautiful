@@ -408,10 +408,26 @@ class ImprovedDocxToMarkdownConverter:
             elif run.italic and text.strip():
                 if not text.startswith('*'):
                     text = f"*{text}*"
-                
+
             result.append(text)
-            
-        return ''.join(result)
+        formatted = ''.join(result)
+        return self._apply_special_formatting(formatted)
+
+    def _apply_special_formatting(self, text: str) -> str:
+        """Добавляет оформление для сервисов и имён файлов"""
+        # Имена файлов с расширениями оборачиваем в ``
+        text = re.sub(
+            r"(?<!`)(\b[\w.-]+\.(?:ya?ml|conf|ini|sh|py|txt)\b)(?!`)",
+            r"`\1`",
+            text,
+        )
+        # Названия сервисов после слова "сервис" также оборачиваем
+        text = re.sub(
+            r"(?i)(\b(?:сервис[а-я]*|service)\s+)([A-Za-z0-9_-]+)",
+            lambda m: f"{m.group(1)}`{m.group(2)}`",
+            text,
+        )
+        return text
     
     def _is_list_item(self, para) -> bool:
         """Проверка, является ли параграф элементом списка"""
