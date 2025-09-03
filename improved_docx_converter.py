@@ -49,7 +49,7 @@ try:
 except ImportError:
     # Если модуль не найден, создаем заглушку
     class MarkdownFormatter:
-        def transform_document(self, text, chapter_number=1):
+        def transform_document(self, text, chapter_number: int = 1):
             return text
 
 
@@ -1008,7 +1008,7 @@ class ImprovedDocxToMarkdownConverter:
     def _post_process_formatting(self, markdown_content: str, chapter_number: int = 1) -> str:
         """
         Применяет исправления форматирования к результату конвертации
-        
+
         Args:
             markdown_content: Исходный markdown контент
             chapter_number: Номер главы для восстановления нумерации
