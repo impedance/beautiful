@@ -943,7 +943,8 @@ class ImprovedDocxToMarkdownConverter:
         
         # Применяем исправления форматирования
         if self.apply_formatting_fixes:
-            raw_content = self._post_process_formatting(raw_content, chapter_number=chapter['info']['number'])
+            chapter_num = chapter['info']['number']
+            raw_content = self._post_process_formatting(raw_content, chapter_number=chapter_num)
             
         return raw_content
     

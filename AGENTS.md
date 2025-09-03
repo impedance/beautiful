@@ -12,13 +12,24 @@ This file provides instructions for AI agents contributing to the **beautiful** 
 - Add YAML frontmatter: `python3 improved_docx_converter.py input.docx output.md --frontmatter`
 - Split DOCX into chapters: `python3 improved_docx_converter.py input.docx --split-chapters`
 
-## Testing
+## Code Quality Principles
+- Follow SOLID to keep modules cohesive and extensible.
+- Keep implementations straightforward (KISS) and avoid over-engineering.
+- Eliminate repetition; prefer abstractions that embody DRY.
+- Review every change for clarity and maintainability before committing.
+
+## Testing and Linting
+- Сначала прогоните линтер:
+  ```bash
+  make lint
+  ```
 - Tests cover both unit and integration behaviour under `tests/`.
-- Always run the full test suite before committing:
+- Always run the linter and full test suite before committing:
   ```bash
   python3 -m venv venv
   source venv/bin/activate
-  pip install -U pip python-docx pytest
+  pip install -U pip python-docx pytest flake8 --exclude=venv . flake8
+  make lint
   python3 -m pytest tests/ -v
   ```
 

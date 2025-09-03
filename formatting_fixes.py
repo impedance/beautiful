@@ -290,10 +290,11 @@ class MarkdownFormatter:
     def transform_document(self, markdown_text: str, chapter_number: int = 1) -> str:
         """
         Полная трансформация документа из chapters формата в samples формат
-        
+
         Args:
             markdown_text: Исходный markdown из chapters
-            
+            chapter_number: Номер главы, используемый при восстановлении нумерации
+
         Returns:
             Преобразованный markdown в формате samples
         """
@@ -395,7 +396,7 @@ class MarkdownFormatter:
             else:
                 transformed_sections.append(section)
         
-        # 3. Восстанавливаем нумерацию разделов
+        # 4. Восстанавливаем нумерацию разделов
         if h2_sections:
             # Определяем структуру для текущей главы
             chapter_structure = {chapter_number: len(h2_sections)}
