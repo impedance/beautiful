@@ -287,7 +287,7 @@ class MarkdownFormatter:
             4: 6,  # И так далее...
         }
     
-    def transform_document(self, markdown_text: str) -> str:
+    def transform_document(self, markdown_text: str, chapter_number: int = 1) -> str:
         """
         Полная трансформация документа из chapters формата в samples формат
         
@@ -300,12 +300,37 @@ class MarkdownFormatter:
         # 1. Исправляем frontmatter
         result = fix_frontmatter_format(markdown_text)
         
-        # 2. Разбиваем на секции для обработки
-        sections = result.split('\n\n')
+        # 2. Разбиваем на секции и группируем последовательные абзацы
+        raw_sections = result.split('\n\n')
+        sections = []
+        buffer = []
+        for sec in raw_sections:
+            sec = sec.strip()
+            if not sec:
+                continue
+
+            is_list_candidate = (
+                (sec.endswith(';') or (buffer and sec.endswith('.')))
+                and not sec.startswith(('#', '-', '::', '|', '>'))
+            )
+
+            if is_list_candidate:
+                buffer.append(sec)
+                continue
+
+            if buffer:
+                sections.append('\n\n'.join(buffer))
+                buffer = []
+
+            sections.append(sec)
+
+        if buffer:
+            sections.append('\n\n'.join(buffer))
+
         transformed_sections = []
-        
+
         h2_sections = []  # Собираем H2 заголовки для нумерации
-        
+
         for section in sections:
             section = section.strip()
             if not section:
@@ -317,16 +342,16 @@ class MarkdownFormatter:
                 # Простая эвристика: первый H3 - это главный заголовок
                 is_main = len([s for s in transformed_sections if s.startswith('#')]) == 0
                 fixed_heading = fix_heading_levels(section, is_main)
-                
+
                 if fixed_heading.startswith('##'):
                     h2_sections.append(fixed_heading)
-                
+
                 transformed_sections.append(fixed_heading)
-            
-            # Обрабатываем AppAnnotations
-            elif len(section) > 100 and not section.startswith(('---', '::', '-', '|', '>')):
-                wrapped = detect_and_wrap_appannotations(section)
-                transformed_sections.append(wrapped)
+            elif section.startswith('##'):
+                # Удаляем существующую нумерацию и сохраняем для пере-нумерации
+                clean_heading = re.sub(r'^##\s*\d+\.\d+\s+', '## ', section)
+                h2_sections.append(clean_heading)
+                transformed_sections.append(clean_heading)
             
             # Обрабатываем списки
             elif ';' in section and not section.startswith('-'):
@@ -352,24 +377,28 @@ class MarkdownFormatter:
                             transformed_sections.append(section)
                     else:
                         transformed_sections.append(section)
-            
+            # Обрабатываем AppAnnotations
+            elif len(section) > 100 and not section.startswith(('---', '::', '-', '|', '>')):
+                wrapped = detect_and_wrap_appannotations(section)
+                transformed_sections.append(wrapped)
+
             # Обрабатываем технические компоненты
             elif 'сервер' in section or 'плагин' in section:
                 tech_formatted = format_technical_components(section)
                 transformed_sections.append(tech_formatted)
-            
+
             # Обрабатываем таблицы
             elif 'Таблица' in section and '|' in section:
                 table_fixed = fix_table_structure(section)
                 transformed_sections.append(table_fixed)
-            
+
             else:
                 transformed_sections.append(section)
         
         # 3. Восстанавливаем нумерацию разделов
         if h2_sections:
-            # Определяем структуру для первой главы (предполагаем 2 раздела)
-            chapter_structure = {1: len(h2_sections)}
+            # Определяем структуру для текущей главы
+            chapter_structure = {chapter_number: len(h2_sections)}
             numbered_sections = restore_section_numbering(h2_sections, chapter_structure)
             
             # Заменяем в результате
