@@ -19,13 +19,17 @@ This file provides instructions for AI agents contributing to the **beautiful** 
 - Review every change for clarity and maintainability before committing.
 
 ## Testing and Linting
+- Сначала прогоните линтер:
+  ```bash
+  make lint
+  ```
 - Tests cover both unit and integration behaviour under `tests/`.
 - Always run the linter and full test suite before committing:
   ```bash
   python3 -m venv venv
   source venv/bin/activate
-  pip install -U pip python-docx pytest flake8
-  flake8 --exclude=venv .
+  pip install -U pip python-docx pytest flake8 --exclude=venv . flake8
+  make lint
   python3 -m pytest tests/ -v
   ```
 
