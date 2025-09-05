@@ -5,44 +5,43 @@ from __future__ import annotations
 import json
 import re
 import time
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Protocol, Tuple
 
 import httpx
 from jsonschema import validate
 
-from .config import API_KEY
+from .config import API_KEY, API_URL, DEFAULT_MODEL
 
 # The schema is optional during early development stages. Tests may patch this
 # constant to supply a concrete schema.
 CHAPTER_MANIFEST_SCHEMA: Dict[str, Any] = {}
 
 
-class PromptBuilderProtocol:
-    """Protocol-like interface for prompt builders."""
+class PromptBuilderProtocol(Protocol):
+    """Interface for prompt builders."""
 
     def build_for_chapter(
         self, chapter_html: str
-    ) -> List[Dict[str, str]]:  # pragma: no cover - interface
-        raise NotImplementedError
+    ) -> List[Dict[str, str]]: ...  # pragma: no cover - interface
 
 
 class OpenRouterClient:
     """HTTP client wrapper with basic retry and response parsing."""
-
-    api_url = "https://openrouter.ai/api/v1/chat/completions"
 
     def __init__(
         self,
         prompt_builder: PromptBuilderProtocol,
         api_key: str | None = None,
         *,
-        model: str = "gpt-4o-mini",
+        model: str | None = None,
+        api_url: str | None = None,
         max_retries: int = 5,
         client: httpx.Client | None = None,
     ) -> None:
         self.prompt_builder = prompt_builder
         self.api_key = api_key or API_KEY
-        self.model = model
+        self.model = model or DEFAULT_MODEL
+        self.api_url = api_url or API_URL
         self.max_retries = max_retries
         self._client = client or httpx.Client()
 
