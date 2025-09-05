@@ -9,15 +9,20 @@ import subprocess
 import mammoth
 from bs4 import BeautifulSoup
 
+from .heading_numbering import add_numbering_to_html
+
 
 def convert_docx_to_html(docx_path: str, style_map_path: str) -> str:
-    """Convert DOCX to HTML using a Mammoth style map."""
+    """Convert DOCX to HTML using a Mammoth style map and add heading numbering."""
     with open(docx_path, "rb") as docx_file, open(
         style_map_path, "r", encoding="utf-8"
     ) as style_map_file:
         style_map = style_map_file.read()
         result = mammoth.convert_to_html(docx_file, style_map=style_map)
-    return result.value
+    
+    # Add heading numbering based on TOC information
+    html_with_numbering = add_numbering_to_html(result.value, docx_path)
+    return html_with_numbering
 
 
 def extract_images(docx_path: str, output_dir: str) -> None:
