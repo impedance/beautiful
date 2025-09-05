@@ -73,7 +73,13 @@ class OpenRouterClient:
                 delay *= 2
                 continue
             response.raise_for_status()
-            content = response.json()["choices"][0]["message"]["content"]
+            if "application/json" not in response.headers.get("Content-Type", ""):
+                raise ValueError("Unexpected content type from OpenRouter")
+            try:
+                data = response.json()
+            except json.JSONDecodeError as exc:
+                raise ValueError("Invalid JSON response from OpenRouter") from exc
+            content = data["choices"][0]["message"]["content"]
             json_match = re.search(r"```json\n(.*?)\n```", content, re.DOTALL)
             md_match = re.search(r"```markdown\n(.*?)\n```", content, re.DOTALL)
             if not json_match or not md_match:
