@@ -57,7 +57,11 @@ class OpenRouterClient:
         messages = self.prompt_builder.build_for_chapter(chapter_html)
 
         payload = {"model": self.model, "messages": messages}
-        headers = {"Authorization": f"Bearer {self.api_key}"}
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        }
         if self.http_referer:
             headers["HTTP-Referer"] = self.http_referer
         if self.app_title:
@@ -73,12 +77,15 @@ class OpenRouterClient:
                 delay *= 2
                 continue
             response.raise_for_status()
-            if "application/json" not in response.headers.get("Content-Type", ""):
-                raise ValueError("Unexpected content type from OpenRouter")
             try:
                 data = response.json()
             except json.JSONDecodeError as exc:
-                raise ValueError("Invalid JSON response from OpenRouter") from exc
+                content_type = response.headers.get("Content-Type", "")
+                snippet = response.text[:200]
+                raise ValueError(
+                    "Unexpected response from OpenRouter:"
+                    f" content-type={content_type!r}, body={snippet!r}"
+                ) from exc
             content = data["choices"][0]["message"]["content"]
             json_match = re.search(r"```json\n(.*?)\n```", content, re.DOTALL)
             md_match = re.search(r"```markdown\n(.*?)\n```", content, re.DOTALL)
