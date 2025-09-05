@@ -7,13 +7,21 @@ from rich.progress import Progress
 from slugify import slugify
 
 from . import navigation, postprocess, preprocess, prompt_builder, splitter, validators
-from .config import DEFAULT_MODEL
-from .llm_client import OpenRouterClient
+from .config import DEFAULT_MODEL, DEFAULT_PROVIDER, OPENROUTER_DEFAULT_MODEL, MISTRAL_DEFAULT_MODEL
+from .llm_client import ClientFactory
 
 logging.basicConfig(level=logging.INFO)
 
 app = typer.Typer(help="Convert DOCX documentation to Markdown.")
 console = Console()
+
+
+def get_default_model_for_provider(provider: str) -> str:
+    """Get the default model for a given provider."""
+    if provider.lower() == "mistral":
+        return MISTRAL_DEFAULT_MODEL
+    else:  # openrouter or default
+        return OPENROUTER_DEFAULT_MODEL
 
 
 @app.callback()
@@ -41,7 +49,10 @@ def run(
         help="Каталог с примерами форматирования.",
     ),
     model: str = typer.Option(
-        DEFAULT_MODEL, "--model", help="Имя модели OpenRouter для форматирования."
+        DEFAULT_MODEL, "--model", help="Имя модели для форматирования."
+    ),
+    provider: str = typer.Option(
+        DEFAULT_PROVIDER, "--provider", help="API провайдер (openrouter или mistral)."
     ),
     dry_run: bool = typer.Option(
         False, "--dry-run/--no-dry-run", help="Запуск без обращения к LLM."
@@ -87,7 +98,12 @@ def run(
 
     doc_slug = slugify(Path(docx_path).stem)
     builder = prompt_builder.PromptBuilder(rules_path, samples_dir)
-    client = OpenRouterClient(builder, model=model)
+    
+    # If model is the default and doesn't match provider, use provider's default model
+    if model == DEFAULT_MODEL:
+        model = get_default_model_for_provider(provider)
+    
+    client = ClientFactory.create_client(provider, builder, model=model)
 
     with Progress() as progress:
         task = progress.add_task("Formatting chapters", total=len(chapters))
