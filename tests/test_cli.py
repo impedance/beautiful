@@ -87,3 +87,35 @@ def test_run_passes_model_option(monkeypatch, tmp_path) -> None:
 
     assert result.exit_code == 0
     assert captured["model"] == "test-model"
+
+
+def test_run_dry_run_with_empty_chapters_list(monkeypatch, tmp_path) -> None:
+    """Test that dry-run handles empty chapters list gracefully."""
+    def fake_convert(docx_path: str, style_map_path: str) -> str:
+        # Return HTML without H1 tags
+        return "<p>Some content without h1 tags</p><h2>Subheading</h2>"
+
+    def fake_extract(docx_path: str, output_dir: str) -> None:
+        pass
+
+    monkeypatch.setattr("doc2md.preprocess.convert_docx_to_html", fake_convert)
+    monkeypatch.setattr("doc2md.preprocess.extract_images", fake_extract)
+
+    result = runner.invoke(
+        app, ["run", "input.docx", "--out", str(tmp_path), "--dry-run"]
+    )
+
+    assert result.exit_code == 0
+    assert "Dry run completed" in result.stdout
+    assert "No H1 tags found" in result.stdout
+    
+    # Check that html directory exists and full_document.html was created
+    html_dir = tmp_path / "html"
+    assert html_dir.exists()
+    full_doc = html_dir / "full_document.html"
+    assert full_doc.exists()
+    
+    # Verify content
+    content = full_doc.read_text(encoding="utf-8")
+    assert "<p>Some content without h1 tags</p>" in content
+    assert "<h2>Subheading</h2>" in content

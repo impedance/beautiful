@@ -62,11 +62,19 @@ def run(
     if dry_run:
         temp_dir = output_path / "html"
         temp_dir.mkdir(parents=True, exist_ok=True)
-        for idx, chapter in enumerate(chapters, start=1):
-            (temp_dir / f"chapter_{idx}.html").write_text(chapter, encoding="utf-8")
-        console.print(
-            f"[yellow]Dry run completed. HTML chapters saved to {temp_dir}.[/]"
-        )
+        
+        if chapters:
+            for idx, chapter in enumerate(chapters, start=1):
+                (temp_dir / f"chapter_{idx}.html").write_text(chapter, encoding="utf-8")
+            console.print(
+                f"[yellow]Dry run completed. {len(chapters)} HTML chapters saved to {temp_dir}.[/]"
+            )
+        else:
+            # No H1 tags found, save the entire HTML as a single file
+            (temp_dir / "full_document.html").write_text(html, encoding="utf-8")
+            console.print(
+                f"[yellow]Dry run completed. No H1 tags found, full HTML saved as full_document.html in {temp_dir}.[/]"
+            )
         return
 
     doc_slug = slugify(Path(docx_path).stem)
