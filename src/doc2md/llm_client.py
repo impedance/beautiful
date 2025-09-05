@@ -10,7 +10,13 @@ from typing import Any, Dict, List, Protocol, Tuple
 import httpx
 from jsonschema import validate
 
-from .config import API_KEY, API_URL, DEFAULT_MODEL
+from .config import (
+    API_KEY,
+    API_URL,
+    DEFAULT_MODEL,
+    HTTP_REFERER,
+    APP_TITLE,
+)
 from .schema import CHAPTER_MANIFEST_SCHEMA
 
 
@@ -41,6 +47,10 @@ class OpenRouterClient:
         self.api_url = api_url or API_URL
         self.max_retries = max_retries
         self._client = client or httpx.Client()
+        self.http_referer = HTTP_REFERER
+        self.app_title = APP_TITLE
+        if not self.api_key:
+            raise RuntimeError("OpenRouter API key is missing. Set OPENROUTER_API_KEY.")
 
     def format_chapter(self, chapter_html: str) -> Tuple[Dict[str, Any], str]:
         """Format a chapter of HTML via the OpenRouter API."""
@@ -48,6 +58,10 @@ class OpenRouterClient:
 
         payload = {"model": self.model, "messages": messages}
         headers = {"Authorization": f"Bearer {self.api_key}"}
+        if self.http_referer:
+            headers["HTTP-Referer"] = self.http_referer
+        if self.app_title:
+            headers["X-Title"] = self.app_title
 
         delay = 1
         for attempt in range(self.max_retries):

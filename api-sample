@@ -1,22 +1,25 @@
+"""Example usage of the OpenRouter API with the OpenAI client."""
+
+from __future__ import annotations
+
+import os
+
 from openai import OpenAI
 
-client = OpenAI(
-  base_url="https://openrouter.ai/api/v1",
-  api_key="<OPENROUTER_API_KEY>",
-)
+api_key = os.getenv("OPENROUTER_API_KEY")
+if not api_key:
+    raise RuntimeError("Set OPENROUTER_API_KEY environment variable")
+
+client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
 
 completion = client.chat.completions.create(
-  extra_headers={
-    "HTTP-Referer": "<YOUR_SITE_URL>", # Optional. Site URL for rankings on openrouter.ai.
-    "X-Title": "<YOUR_SITE_NAME>", # Optional. Site title for rankings on openrouter.ai.
-  },
-  extra_body={},
-  model="qwen/qwen3-4b:free",
-  messages=[
-    {
-      "role": "user",
-      "content": "What is the meaning of life?"
-    }
-  ]
+    model="qwen/qwen3-4b:free",
+    messages=[{"role": "user", "content": "What is the meaning of life?"}],
+    extra_headers={
+        "HTTP-Referer": "https://example.com",  # Optional
+        "X-Title": "Example Site",  # Optional
+    },
+    extra_body={},
 )
+
 print(completion.choices[0].message.content)
