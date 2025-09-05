@@ -57,6 +57,8 @@ def run(
     preprocess.extract_images(docx_path, str(images_dir))
 
     html = preprocess.convert_docx_to_html(docx_path, str(style_map))
+    # Remove table of contents to clean up the document
+    html = preprocess.remove_table_of_contents(html)
     chapters = splitter.split_html_by_h1(html)
 
     if dry_run:
