@@ -12,15 +12,9 @@ from jsonschema import validate
 
 from .config import API_KEY
 
-_CHAPTER_MANIFEST_SCHEMA: Dict[str, Any]
-try:  # pragma: no cover - optional dependency during early phases
-    from . import schema
-
-    _CHAPTER_MANIFEST_SCHEMA = schema.CHAPTER_MANIFEST_SCHEMA
-except Exception:  # pragma: no cover - fallback when schema module absent
-    _CHAPTER_MANIFEST_SCHEMA = {}
-
-CHAPTER_MANIFEST_SCHEMA = _CHAPTER_MANIFEST_SCHEMA
+# The schema is optional during early development stages. Tests may patch this
+# constant to supply a concrete schema.
+CHAPTER_MANIFEST_SCHEMA: Dict[str, Any] = {}
 
 
 class PromptBuilderProtocol:
