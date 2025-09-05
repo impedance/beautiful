@@ -17,7 +17,7 @@ lxml = "^5.2.1"
 httpx = "^0.28.1"
 jsonschema = "^4.25.1"
 python-frontmatter = "^1.0.0"
-python-slugify = "1.2.1"
+python-slugify = "^8.0.4"
 
 [tool.poetry.group.dev.dependencies]
 black = "^24.4.2"
