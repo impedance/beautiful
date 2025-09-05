@@ -1,7 +1,10 @@
 import logging
+from pathlib import Path
 
 import typer
 from rich.console import Console
+
+from . import preprocess, splitter
 
 logging.basicConfig(level=logging.INFO)
 
@@ -27,7 +30,21 @@ def run(
     """Run the conversion pipeline."""
     logging.getLogger(__name__).info("Running the pipeline")
     console.print(f"[bold green]Запуск конвертации для файла:[/] {docx_path}")
-    # Here will be the pipeline logic
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    images_dir = output_path / "images"
+    preprocess.extract_images(docx_path, str(images_dir))
+
+    style_map_path = Path(__file__).with_name("mammoth_style_map.map")
+    html = preprocess.convert_docx_to_html(docx_path, str(style_map_path))
+    chapters = splitter.split_html_by_h1(html)
+
+    temp_dir = output_path / "html"
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    for idx, chapter in enumerate(chapters, start=1):
+        (temp_dir / f"chapter_{idx}.html").write_text(chapter, encoding="utf-8")
+
     console.print(f"[bold green]Конвертация завершена. Результаты в:[/] {output_dir}")
 
 
