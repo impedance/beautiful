@@ -25,3 +25,4 @@ output/*
 !output/.gitkeep
 scripts/*
 !scripts/.gitkeep
+output_dir/images/media/image2.png
