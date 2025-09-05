@@ -2,6 +2,10 @@
 
 This repository implements a pipeline for converting DOCX documents to Markdown as described in `doc2md-plan.md`.
 
+## Planning
+- Consult `implementation-plan.md` for the high-level roadmap.
+- Use `todo.md` for detailed task breakdowns and implementation notes.
+
 ## Development workflow
 - Python 3.11+ is required.
 - Use [Poetry](https://python-poetry.org/) for dependency management. When Poetry is unavailable or a lighter setup is desired, you may alternatively create a virtual environment via `python -m venv .venv` and install dependencies with `pip`.
