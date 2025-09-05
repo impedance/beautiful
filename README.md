@@ -20,6 +20,8 @@ API-ключ и параметры OpenRouter задаются в файле `.e
 OPENROUTER_API_KEY="your_api_key_here"
 OPENROUTER_API_URL="https://openrouter.ai/api/v1/chat/completions"
 OPENROUTER_MODEL="gpt-4o-mini"
+OPENROUTER_HTTP_REFERER="https://example.com"  # optional
+OPENROUTER_APP_TITLE="Example"  # optional
 ```
 
 ## Использование
