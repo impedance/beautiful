@@ -1,7 +1,17 @@
-.venv
-__pycache__
-venv
+# Python caches
+__pycache__/
+*.py[cod]
+*.egg-info/
+.mypy_cache/
+.pytest_cache/
+
+# Virtual environments
+.venv/
+venv/
+
 docx/__pycache__
+
+# Generated chapters
 chapters/1.common.md
 chapters/2.architecture.md
 chapters/3.technical-requirements.md
@@ -9,10 +19,9 @@ chapters/4.installation-setup.md
 chapters/5.system-setup.md
 chapters/6.monitoring.md
 chapters/7.winter-cms.md
-chapters/1.common.md
-chapters/2.architecture.md
-chapters/3.technical-requirements.md
-chapters/4.installation-setup.md
-chapters/5.system-setup.md
-chapters/6.monitoring.md
-chapters/7.winter-cms.md
+
+# Project outputs
+output/*
+!output/.gitkeep
+scripts/*
+!scripts/.gitkeep
