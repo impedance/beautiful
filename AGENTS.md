@@ -15,6 +15,14 @@ This repository implements a pipeline for converting DOCX documents to Markdown 
 - Format code with `black` and lint with `ruff`.
 - Type check with `mypy` when annotations are present.
 
+## Design principles
+- Write clean, readable code that is easy to maintain.
+- Apply SOLID principles throughout the codebase.
+- Ensure components are open for extension but closed for modification (Open/Closed principle).
+- Avoid duplication by following the DRY principle.
+- Keep implementations straightforward in line with KISS.
+- Use Test-Driven Development (TDD) to guide new features.
+
 ## Testing
 - Run `pytest` for unit tests. Ensure all tests pass before committing.
 - Add tests for new modules or functionality.
