@@ -1,0 +1,113 @@
+# Mammoth style-map (полный)
+
+> Содержит: маппинг заголовков (включая русские и англ. встроенные стили), списков, inline-кода, блочных кодов и bash, а также безопасные правила по умолчанию. Если в твоём DOCX реально используются другие кастомные имена стилей — просто добавь/подправь соответствующие строки. (Mammoth применяет первое подходящее правило сверху вниз.)
+
+```text
+#######################################################################
+# Mammoth style-map for ROSA docs → semantic HTML
+# - Map custom ROSA_* styles and built-in heading/list/code styles
+# - Preserve semantics for LLM post-processing to Markdown
+#
+# Heads-up:
+#  - Paragraph rules: p[style-name=...]
+#  - Run rules (inline): r[style-name=...]
+#  - Use :fresh to start a fresh element for each paragraph
+#  - language-bash class helps later map to ```bash
+#######################################################################
+
+############################
+# 1) HEADINGS
+############################
+# Custom Russian styles (examples)
+p[style-name^='ROSA_Заголовок_Глава']        => h1:fresh
+p[style-name^='ROSA_Раздел']                 => h2:fresh
+p[style-name^='ROSA_Подраздел']              => h3:fresh
+p[style-name^='ROSA_Подподраздел']           => h4:fresh
+
+# Generic Russian built-ins
+p[style-name='Заголовок 1']                  => h1:fresh
+p[style-name='Заголовок 2']                  => h2:fresh
+p[style-name='Заголовок 3']                  => h3:fresh
+p[style-name='Заголовок 4']                  => h4:fresh
+
+# English built-ins (just in case)
+p[style-name='Heading 1']                    => h1:fresh
+p[style-name='Heading 2']                    => h2:fresh
+p[style-name='Heading 3']                    => h3:fresh
+p[style-name='Heading 4']                    => h4:fresh
+
+############################
+# 2) LISTS
+############################
+# Custom list styles mapped to semantic lists.
+# Each paragraph becomes a fresh <li>.
+p[style-name='ROSA_Список 1_маркированный']  => ul > li:fresh
+p[style-name='ROSA_Список 1_нумерованный']   => ol > li:fresh
+p[style-name='ROSA_Список 2_маркированный']  => ul > li:fresh
+p[style-name='ROSA_Список 2_нумерованный']   => ol > li:fresh
+
+# Built-in Russian list styles (if present)
+p[style-name='Список']                        => ul > li:fresh
+p[style-name='Маркированный список']          => ul > li:fresh
+p[style-name='Нумерованный список']           => ol > li:fresh
+
+# English built-ins as safety net
+p[style-name='List Paragraph']                => ul > li:fresh
+# If Word produced pure paragraph for list content, let Mammoth infer using numbering;
+# otherwise it will still fall back to <p> if not recognized.
+
+############################
+# 3) CODE & TERMINAL
+############################
+# Block code styles → <pre><code>
+# Add language class when we know it (bash)
+p[style-name='ROSA_CodeBlock']                => pre > code:fresh
+p[style-name='ROSA_Bash']                     => pre > code.language-bash:fresh
+p[style-name='ROSA_YAML']                     => pre > code.language-yaml:fresh
+p[style-name='ROSA_JSON']                     => pre > code.language-json:fresh
+p[style-name='ROSA_CONF']                     => pre > code.language-conf:fresh
+
+# Built-in "Code" paragraph (rare but seen)
+p[style-name='Code']                          => pre > code:fresh
+p[style-name='Код']                           => pre > code:fresh
+
+# Inline code runs
+r[style-name='ROSA_InlineCode']               => code
+r[style-name='Inline Code']                   => code
+r[style-name='Встроенный код']                => code
+
+############################
+# 4) QUOTES & NOTES (optional)
+############################
+# If there are custom paragraph styles for notes/quotes, map to blockquote.
+# (Final formatting like "_Примечание_" stays LLM's job per formatting_rules)
+p[style-name='ROSA_Note']                     => blockquote:fresh
+p[style-name='ROSA_Quote']                    => blockquote:fresh
+
+############################
+# 5) TABLES
+############################
+# Mammoth outputs tables natively; no explicit map needed.
+# Keep as HTML <table>, post-processing/LLM will convert or leave as GFM.
+# (Complex tables may be left as HTML as per formatting_rules.)
+
+############################
+# 6) CAPTIONS / FIGURES
+############################
+# Word "Caption" style often marks figure/table captions.
+# We keep as paragraph; LLM will transform to required blockquote or sign-image blocks.
+p[style-name='Caption']                       => p:fresh
+p[style-name='Подпись']                       => p:fresh
+p[style-name='ROSA_Caption']                  => p:fresh
+
+############################
+# 7) DEFAULT PARAGRAPHS
+############################
+# Default paragraph → <p>
+p[style-name='Обычный']                       => p:fresh
+p[style-name='Обычный текст']                 => p:fresh
+p[style-name='Normal']                        => p:fresh
+p[style-name='Body Text']                     => p:fresh
+
+# Fallback: any other paragraph style becomes <p>
+p => p
