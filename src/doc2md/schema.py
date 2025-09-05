@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
+
 CHAPTER_MANIFEST_SCHEMA: Dict[str, Any] = {
     "type": "object",
     "required": ["chapter_number", "title", "filename", "slug"],
