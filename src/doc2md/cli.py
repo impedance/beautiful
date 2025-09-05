@@ -61,10 +61,16 @@ def run(
     html = preprocess.remove_table_of_contents(html)
     chapters = splitter.split_html_by_h1(html)
 
+    # Temporary fix: only send the 4th chapter to the model
+    if len(chapters) >= 4:
+        chapters = [chapters[3]]
+    else:
+        chapters = []
+
     if dry_run:
         temp_dir = output_path / "html"
         temp_dir.mkdir(parents=True, exist_ok=True)
-        
+
         if chapters:
             for idx, chapter in enumerate(chapters, start=1):
                 (temp_dir / f"chapter_{idx}.html").write_text(chapter, encoding="utf-8")
