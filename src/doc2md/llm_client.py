@@ -11,10 +11,7 @@ import httpx
 from jsonschema import validate
 
 from .config import API_KEY, API_URL, DEFAULT_MODEL
-
-# The schema is optional during early development stages. Tests may patch this
-# constant to supply a concrete schema.
-CHAPTER_MANIFEST_SCHEMA: Dict[str, Any] = {}
+from .schema import CHAPTER_MANIFEST_SCHEMA
 
 
 class PromptBuilderProtocol(Protocol):

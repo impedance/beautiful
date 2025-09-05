@@ -12,7 +12,12 @@ class DummyBuilder(PromptBuilderProtocol):
 
 def _make_success_response():
     content = """```json
-{"title": "One"}
+{
+  "chapter_number": 1,
+  "title": "One",
+  "filename": "1.one.md",
+  "slug": "one"
+}
 ```
 ```markdown
 # One
@@ -20,23 +25,21 @@ def _make_success_response():
     return {"choices": [{"message": {"content": content}}]}
 
 
-def test_format_chapter_parses_blocks(monkeypatch) -> None:
+def test_format_chapter_parses_blocks() -> None:
     transport = httpx.MockTransport(
         lambda request: httpx.Response(200, json=_make_success_response())
-    )
-    monkeypatch.setattr(
-        "doc2md.llm_client.CHAPTER_MANIFEST_SCHEMA",
-        {
-            "type": "object",
-            "properties": {"title": {"type": "string"}},
-            "required": ["title"],
-        },
     )
     client = OpenRouterClient(
         DummyBuilder(), api_key="k", client=httpx.Client(transport=transport)
     )
     manifest, markdown = client.format_chapter("<h1>One</h1>")
-    assert manifest == {"title": "One"}
+    expected_manifest = {
+        "chapter_number": 1,
+        "title": "One", 
+        "filename": "1.one.md",
+        "slug": "one"
+    }
+    assert manifest == expected_manifest
     assert markdown == "# One"
 
 
@@ -56,5 +59,11 @@ def test_format_chapter_retries_on_429(monkeypatch) -> None:
     )
     manifest, markdown = client.format_chapter("<h1>One</h1>")
     assert markdown == "# One"
-    assert manifest == {"title": "One"}
+    expected_manifest = {
+        "chapter_number": 1,
+        "title": "One",
+        "filename": "1.one.md", 
+        "slug": "one"
+    }
+    assert manifest == expected_manifest
     assert sleep_calls == [1]

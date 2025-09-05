@@ -39,50 +39,95 @@ p[style-name='Heading 4']                    => h4:fresh
 ############################
 # 2) LISTS
 ############################
-# Custom list styles mapped to semantic lists.
+# Custom list styles mapped to semantic lists with enhanced classes
 # Each paragraph becomes a fresh <li>.
 p[style-name='ROSA_Список 1_маркированный']  => ul > li:fresh
 p[style-name='ROSA_Список 1_нумерованный']   => ol > li:fresh
 p[style-name='ROSA_Список 2_маркированный']  => ul > li:fresh
 p[style-name='ROSA_Список 2_нумерованный']   => ol > li:fresh
 
+# Specialized semantic lists for better LLM understanding
+p[style-name='ROSA_ComponentList']            => ul.component-list > li:fresh
+p[style-name='ROSA_FeatureList']              => ul.feature-list > li:fresh
+p[style-name='ROSA_RequirementList']          => ul.requirement-list > li:fresh
+p[style-name='ROSA_StepList']                 => ol.step-list > li:fresh
+p[style-name='ROSA_TechList']                 => ul.tech-list > li:fresh
+
 # Built-in Russian list styles (if present)
 p[style-name='Список']                        => ul > li:fresh
 p[style-name='Маркированный список']          => ul > li:fresh
 p[style-name='Нумерованный список']           => ol > li:fresh
+p[style-name='Список компонентов']            => ul.component-list > li:fresh
 
 # English built-ins as safety net
 p[style-name='List Paragraph']                => ul > li:fresh
+p[style-name='Component List']                => ul.component-list > li:fresh
 # If Word produced pure paragraph for list content, let Mammoth infer using numbering;
 # otherwise it will still fall back to <p> if not recognized.
 
 ############################
 # 3) CODE & TERMINAL
 ############################
-# Block code styles → <pre><code>
-# Add language class when we know it (bash)
+# Block code styles → <pre><code> with semantic classes
 p[style-name='ROSA_CodeBlock']                => pre > code:fresh
 p[style-name='ROSA_Bash']                     => pre > code.language-bash:fresh
 p[style-name='ROSA_YAML']                     => pre > code.language-yaml:fresh
 p[style-name='ROSA_JSON']                     => pre > code.language-json:fresh
 p[style-name='ROSA_CONF']                     => pre > code.language-conf:fresh
+p[style-name='ROSA_SQL']                      => pre > code.language-sql:fresh
+p[style-name='ROSA_HTML']                     => pre > code.language-html:fresh
+p[style-name='ROSA_CSS']                      => pre > code.language-css:fresh
+p[style-name='ROSA_JavaScript']               => pre > code.language-javascript:fresh
 
-# Built-in "Code" paragraph (rare but seen)
+# Terminal and command styles with enhanced semantics
+p[style-name='ROSA_Terminal']                 => pre > code.language-terminal:fresh
+p[style-name='ROSA_Command']                  => pre > code.language-bash:fresh
+p[style-name='ROSA_Shell']                    => pre > code.language-shell:fresh
+
+# Configuration files with filename hints
+p[style-name='ROSA_Docker_Compose']           => pre > code.language-yaml.filename-docker-compose:fresh
+p[style-name='ROSA_Traefik_Config']           => pre > code.language-yaml.filename-traefik:fresh
+p[style-name='ROSA_Systemd_Service']          => pre > code.language-ini.filename-service:fresh
+p[style-name='ROSA_Nginx_Config']             => pre > code.language-conf.filename-nginx:fresh
+p[style-name='ROSA_Apache_Config']            => pre > code.language-conf.filename-apache:fresh
+
+# Built-in "Code" paragraph styles
 p[style-name='Code']                          => pre > code:fresh
 p[style-name='Код']                           => pre > code:fresh
+p[style-name='Terminal']                      => pre > code.language-terminal:fresh
+p[style-name='Терминал']                      => pre > code.language-terminal:fresh
 
 # Inline code runs
 r[style-name='ROSA_InlineCode']               => code
 r[style-name='Inline Code']                   => code
 r[style-name='Встроенный код']                => code
+r[style-name='Code Span']                     => code
 
 ############################
-# 4) QUOTES & NOTES (optional)
+# 4) SPECIAL BLOCKS & ANNOTATIONS
 ############################
-# If there are custom paragraph styles for notes/quotes, map to blockquote.
-# (Final formatting like "_Примечание_" stays LLM's job per formatting_rules)
-p[style-name='ROSA_Note']                     => blockquote:fresh
+# AppAnnotation blocks with semantic markup
+p[style-name='ROSA_Annotation']               => div.app-annotation > p:fresh
+p[style-name='ROSA_Important']                => div.app-annotation > p:fresh
+p[style-name='ROSA_AppAnnotation']            => div.app-annotation > p:fresh
+
+# Notes, warnings and other special blocks
+p[style-name='ROSA_Note']                     => div.note > p:fresh
+p[style-name='ROSA_Warning']                  => div.warning > p:fresh
+p[style-name='ROSA_Tip']                      => div.tip > p:fresh
+
+# Image and figure blocks
+p[style-name='ROSA_ImageCaption']             => div.image-caption > p:fresh
+p[style-name='ROSA_FigureBlock']              => div.figure-block > p:fresh
+p[style-name='ROSA_ImageBlock']               => div.image-block > p:fresh
+
+# Traditional quotes and blockquotes
 p[style-name='ROSA_Quote']                    => blockquote:fresh
+p[style-name='ROSA_Blockquote']               => blockquote:fresh
+
+# Built-in quote styles
+p[style-name='Quote']                         => blockquote:fresh
+p[style-name='Цитата']                        => blockquote:fresh
 
 ############################
 # 5) TABLES

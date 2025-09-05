@@ -1,15 +1,67 @@
 # Правила форматирования для конвертации DOCX в Markdown
 
+## ВАЖНО: Семантическая обработка HTML
+
+При конвертации HTML в Markdown обращайте особое внимание на семантические классы и теги, которые указывают на тип форматирования:
+
+### Обработка блоков кода
+HTML с семантической разметкой должен преобразовываться следующим образом:
+
+**Базовые блоки кода:**
+- `<pre><code class="language-bash">команда</code></pre>` → ````bash команда ````
+- `<pre><code class="language-yaml">config</code></pre>` → ````yaml config ````
+- `<pre><code class="language-terminal">$ command</code></pre>` → ````bash Terminal command ````
+
+**Блоки с именами файлов:**
+- `<pre><code class="language-yaml filename-docker-compose">content</code></pre>` → ````yaml docker-compose.yaml content ````
+- `<pre><code class="language-conf filename-nginx">content</code></pre>` → ````conf nginx.conf content ````
+
+**Специальные блоки:**
+- `<div class="app-annotation"><p>текст</p></div>` → `::AppAnnotation текст ::`
+- `<div class="image-caption"><p>подпись</p></div>` → Обработать как подпись к изображению
+- `<ul class="component-list"><li>item</li></ul>` → Список компонентов с точками с запятой
+
 Правила форматирования для конвертации DOCX в Markdown:
 
 ## 1. Структура файлов
 
-### Frontmatter
-Каждый файл должен начинаться с YAML frontmatter:
+### Frontmatter и JSON Manifest
+Каждый файл должен начинаться с YAML frontmatter, который генерируется на основе JSON-манифеста:
+
+**Обязательные поля JSON-манифеста:**
+```json
+{
+  "chapter_number": 1,
+  "title": "Название главы",
+  "filename": "1.chapter.md",
+  "slug": "chapter"
+}
+```
+
+**Опциональные навигационные поля:**
+```json
+{
+  "readPrev": {
+    "to": "/developer/administrator/previous",
+    "label": "Предыдущий раздел"
+  },
+  "readNext": {
+    "to": "/developer/administrator/next", 
+    "label": "Следующий раздел"
+  },
+  "description": "Краткое описание главы",
+  "keywords": ["ключевое", "слово"]
+}
+```
+
+**Итоговый YAML frontmatter:**
 ```yaml
 ---
 title: Название главы/раздела
-nextRead:         # (опционально)
+readPrev:         # (если есть в JSON)
+  to: /путь/к/предыдущей/странице
+  label: Название предыдущей страницы
+readNext:         # (если есть в JSON)
   to: /путь/к/следующей/странице
   label: Название следующей страницы
 ---

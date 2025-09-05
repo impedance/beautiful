@@ -29,12 +29,20 @@ class PromptBuilder:
 
     def build_for_chapter(self, chapter_html: str) -> List[Dict[str, str]]:
         system_prompt = (
-            "You are an expert DOCX to Markdown converter. Follow all rules precisely.\n"
-            f"FORMATTING RULES:\n{self.rules}\n"
+            "You are an expert DOCX to Markdown converter. Follow all rules precisely.\n\n"
+            "IMPORTANT: The HTML contains semantic markup with CSS classes that indicate formatting intent:\n"
+            "- <pre><code class=\"language-X\"> → ```X code blocks\n"
+            "- <div class=\"app-annotation\"> → ::AppAnnotation blocks\n"
+            "- <div class=\"image-caption\"> → Image caption formatting\n"
+            "- <ul class=\"component-list\"> → Component lists with special punctuation\n"
+            "- filename-X classes → Add filename to code blocks\n\n"
+            f"FORMATTING RULES:\n{self.rules}\n\n"
             f"EXAMPLES:\n{self.examples}"
         )
         user_prompt = (
-            "Convert this chapter HTML to Markdown. Return EXACTLY two blocks: a JSON manifest, then the Markdown content.\n"
+            "Convert this chapter HTML to Markdown. Return EXACTLY two blocks:\n"
+            "1. A JSON manifest with chapter metadata (including optional navigation)\n"
+            "2. The Markdown content following all formatting rules\n\n"
             f"CHAPTER HTML:\n```html\n{chapter_html}\n```"
         )
         return [
