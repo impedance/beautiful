@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import httpx
 
-from doc2md.llm_client import OpenRouterClient, PromptBuilderProtocol
+from typing import Any
+import json
+
+from doc2md.llm_client import MistralClient, OpenRouterClient, PromptBuilderProtocol
 
 
 class DummyBuilder(PromptBuilderProtocol):
@@ -93,3 +96,19 @@ def test_format_chapter_adds_extra_headers(monkeypatch) -> None:
     assert captured["Authorization"] == "Bearer k"
     assert captured["HTTP-Referer"] == "https://example.com"
     assert captured["X-Title"] == "Example"
+
+
+def test_mistral_client_uses_random_seed() -> None:
+    captured_payload: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured_payload.update(json.loads(request.content.decode()))
+        return httpx.Response(200, json=_make_success_response())
+
+    transport = httpx.MockTransport(handler)
+    client = MistralClient(
+        DummyBuilder(), api_key="k", client=httpx.Client(transport=transport)
+    )
+    client.format_chapter("<h1>One</h1>")
+    assert "random_seed" in captured_payload
+    assert "seed" not in captured_payload
