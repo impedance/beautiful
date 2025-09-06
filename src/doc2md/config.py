@@ -14,7 +14,7 @@ DEFAULT_PROVIDER = os.getenv("DOC2MD_PROVIDER", "openrouter")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 _openrouter_base_url = os.getenv("OPENROUTER_API_URL", "https://openrouter.ai/api/v1")
 OPENROUTER_API_URL = f"{_openrouter_base_url}/chat/completions"
-OPENROUTER_DEFAULT_MODEL = os.getenv("OPENROUTER_MODEL", "gpt-4o-mini")
+OPENROUTER_DEFAULT_MODEL = os.getenv("OPENROUTER_MODEL", "qwen/qwen-2.5-coder-32b-instruct:free")
 OPENROUTER_HTTP_REFERER = os.getenv("OPENROUTER_HTTP_REFERER", "")
 OPENROUTER_APP_TITLE = os.getenv("OPENROUTER_APP_TITLE", "")
 
