@@ -29,7 +29,7 @@ def test_run_dry_run_skips_llm(monkeypatch, tmp_path) -> None:
         def __init__(self, *a, **k):
             called["client"] = True
 
-    monkeypatch.setattr("doc2md.cli.OpenRouterClient", DummyClient)
+    monkeypatch.setattr("doc2md.llm_client.OpenRouterClient", DummyClient)
 
     result = runner.invoke(
         app, ["run", "input.docx", "--out", str(tmp_path), "--dry-run"]
@@ -74,7 +74,7 @@ def test_run_passes_model_option(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(
         "doc2md.prompt_builder.PromptBuilder", lambda *a, **k: FakeBuilder()
     )
-    monkeypatch.setattr("doc2md.cli.OpenRouterClient", DummyClient)
+    monkeypatch.setattr("doc2md.llm_client.OpenRouterClient", DummyClient)
     monkeypatch.setattr("doc2md.postprocess.PostProcessor", DummyPost)
     monkeypatch.setattr(
         "doc2md.navigation.inject_navigation_and_create_toc", lambda *a, **k: None
@@ -91,6 +91,7 @@ def test_run_passes_model_option(monkeypatch, tmp_path) -> None:
 
 def test_run_dry_run_with_empty_chapters_list(monkeypatch, tmp_path) -> None:
     """Test that dry-run handles empty chapters list gracefully."""
+
     def fake_convert(docx_path: str, style_map_path: str) -> str:
         # Return HTML without H1 tags
         return "<p>Some content without h1 tags</p><h2>Subheading</h2>"
@@ -108,13 +109,13 @@ def test_run_dry_run_with_empty_chapters_list(monkeypatch, tmp_path) -> None:
     assert result.exit_code == 0
     assert "Dry run completed" in result.stdout
     assert "No H1 tags found" in result.stdout
-    
+
     # Check that html directory exists and full_document.html was created
     html_dir = tmp_path / "html"
     assert html_dir.exists()
     full_doc = html_dir / "full_document.html"
     assert full_doc.exists()
-    
+
     # Verify content
     content = full_doc.read_text(encoding="utf-8")
     assert "<p>Some content without h1 tags</p>" in content
