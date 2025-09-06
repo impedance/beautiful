@@ -6,6 +6,7 @@ import json
 import re
 import time
 from typing import Any, Dict, List, Protocol, Tuple
+from bs4 import BeautifulSoup
 
 import httpx
 from jsonschema import validate
@@ -59,10 +60,47 @@ class BaseLLMClient:
         self.max_retries = max_retries
         self._client = client or httpx.Client(timeout=30.0)
 
+    def _validate_content_completeness(self, html_input: str, markdown_output: str) -> bool:
+        """Проверяет, что весь важный контент из HTML попал в Markdown"""
+        try:
+            soup = BeautifulSoup(html_input, 'html.parser')
+            
+            # Извлекаем ключевые элементы из HTML
+            html_headers = [h.get_text().strip() for h in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6'])]
+            html_code_blocks = [code.get_text().strip() for code in soup.find_all(['code', 'pre'])]
+            html_links = [a.get('href', '') for a in soup.find_all('a', href=True)]
+            
+            # Подсчитываем отсутствующие элементы
+            missing_headers = [h for h in html_headers if h and h not in markdown_output]
+            missing_code = [c for c in html_code_blocks if c and len(c) > 10 and c not in markdown_output]
+            missing_links = [l for l in html_links if l and l.startswith('http') and l not in markdown_output]
+            
+            # Пороги для критических пропусков
+            header_loss_ratio = len(missing_headers) / max(len(html_headers), 1)
+            code_loss_ratio = len(missing_code) / max(len(html_code_blocks), 1)
+            
+            # Считаем контент неполным, если пропущено более 20% заголовков или кода
+            if header_loss_ratio > 0.2 or code_loss_ratio > 0.3:
+                print(f"Warning: Content completeness check failed:")
+                print(f"  Missing headers: {len(missing_headers)}/{len(html_headers)} ({header_loss_ratio:.1%})")
+                print(f"  Missing code blocks: {len(missing_code)}/{len(html_code_blocks)} ({code_loss_ratio:.1%})")
+                return False
+                
+            return True
+        except Exception as e:
+            print(f"Warning: Content validation failed: {e}")
+            return True  # При ошибке валидации не блокируем процесс
+
     def format_chapter(self, chapter_html: str) -> Tuple[Dict[str, Any], str]:
         """Format a chapter of HTML via the LLM API."""
         messages = self.prompt_builder.build_for_chapter(chapter_html)
-        payload = {"model": self.model, "messages": messages}
+        payload = {
+            "model": self.model, 
+            "messages": messages,
+            "temperature": 0.0,
+            "seed": 42,
+            "response_format": {"type": "json_object"}
+        }
         headers = self._get_headers()
 
         delay = 1
@@ -85,15 +123,37 @@ class BaseLLMClient:
                     f" content-type={content_type!r}, body={snippet!r}"
                 ) from exc
             content = data["choices"][0]["message"]["content"]
-            json_match = re.search(r"```json\n(.*?)\n```", content, re.DOTALL)
-            md_match = re.search(r"```markdown\n(.*?)\n```", content, re.DOTALL)
-            if not json_match or not md_match:
-                raise ValueError(
-                    "LLM response does not contain valid JSON and Markdown blocks."
-                )
-            manifest = json.loads(json_match.group(1))
-            validate(instance=manifest, schema=CHAPTER_MANIFEST_SCHEMA)
-            markdown = md_match.group(1)
+            try:
+                response_json = json.loads(content)
+                manifest = response_json.get("manifest", {})
+                markdown = response_json.get("markdown", "")
+                
+                if not manifest or not markdown:
+                    raise ValueError("JSON response missing 'manifest' or 'markdown' fields")
+                    
+                validate(instance=manifest, schema=CHAPTER_MANIFEST_SCHEMA)
+                
+                # Валидация полноты контента
+                if not self._validate_content_completeness(chapter_html, markdown):
+                    if attempt < self.max_retries - 1:
+                        print(f"Retrying due to incomplete content (attempt {attempt + 1}/{self.max_retries})")
+                        time.sleep(delay)
+                        delay *= 2
+                        continue
+                    else:
+                        print("Warning: Content may be incomplete, but proceeding anyway")
+                        
+            except (json.JSONDecodeError, KeyError) as e:
+                # Fallback to old format for backwards compatibility
+                json_match = re.search(r"```json\n(.*?)\n```", content, re.DOTALL)
+                md_match = re.search(r"```markdown\n(.*?)\n```", content, re.DOTALL)
+                if not json_match or not md_match:
+                    raise ValueError(
+                        f"LLM response not in expected JSON format: {e}"
+                    )
+                manifest = json.loads(json_match.group(1))
+                validate(instance=manifest, schema=CHAPTER_MANIFEST_SCHEMA)
+                markdown = md_match.group(1)
             return manifest, markdown
 
         raise RuntimeError(f"Failed to obtain response from {self.__class__.__name__} after retries")

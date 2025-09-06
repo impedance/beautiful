@@ -40,9 +40,19 @@ class PromptBuilder:
             f"EXAMPLES:\n{self.examples}"
         )
         user_prompt = (
-            "Convert this chapter HTML to Markdown. Return EXACTLY two blocks:\n"
-            "1. A JSON manifest with chapter metadata (including optional navigation)\n"
-            "2. The Markdown content following all formatting rules\n\n"
+            "Convert this chapter HTML to Markdown.\n\n"
+            "Return ONLY a valid JSON object with exactly these fields:\n"
+            "{\n"
+            '  "manifest": {\n'
+            '    "chapter_number": 1,\n'
+            '    "title": "Chapter Title",\n'
+            '    "filename": "chapter.md",\n'
+            '    "slug": "chapter",\n'
+            '    "readPrev": {"to": "/path", "label": "Previous"}, // optional\n'
+            '    "readNext": {"to": "/path", "label": "Next"} // optional\n'
+            "  },\n"
+            '  "markdown": "Full markdown content with frontmatter..."\n'
+            "}\n\n"
             f"CHAPTER HTML:\n```html\n{chapter_html}\n```"
         )
         return [
