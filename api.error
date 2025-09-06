@@ -1,0 +1,109 @@
+.venv) spec@spec-mvd:~/work/rosa/beautiful$ poetry run doc2md run dev-portal-admin.docx --out output_dir --provider mistral
+INFO:doc2md.cli:Running the pipeline
+Запуск конвертации для файла: dev-portal-admin.docx
+Formatting chapters ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   0% -:--:--INFO:httpx:HTTP Request: POST https://api.mistral.ai/v1/chat/completions "HTTP/1.1 422 Unprocessable Entity"
+Formatting chapters ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   0% -:--:--
+╭──────────────────────────────────────────────────── Traceback (most recent call last) ─────────────────────────────────────────────────────╮
+│ /home/spec/work/rosa/beautiful/src/doc2md/cli.py:111 in run                                                                                │
+│                                                                                                                                            │
+│   108 │   with Progress() as progress:                                                                                                     │
+│   109 │   │   task = progress.add_task("Formatting chapters", total=len(chapters))                                                         │
+│   110 │   │   for idx, chapter in enumerate(chapters, start=1):                                                                            │
+│ ❱ 111 │   │   │   manifest, md = client.format_chapter(chapter)                                                                            │
+│   112 │   │   │   processed = postprocess.PostProcessor(md, idx, doc_slug).run()                                                           │
+│   113 │   │   │   warnings = validators.run_all_validators(processed)                                                                      │
+│   114 │   │   │   for w in warnings:                                                                                                       │
+│                                                                                                                                            │
+│ ╭───────────────────────────────────────────────── locals ─────────────────────────────────────────────────╮                               │
+│ │     builder = <doc2md.prompt_builder.PromptBuilder object at 0x793251c76ea0>                             │                               │
+│ │     chapter = '<h1>4 Установка и запуск комплекса</h1>Установка Комплекса осуществляется на сер'+12753   │                               │
+│ │    chapters = ['<h1>4 Установка и запуск комплекса</h1>Установка Комплекса осуществляется на сер'+12753] │                               │
+│ │      client = <doc2md.llm_client.MistralClient object at 0x793251b97920>                                 │                               │
+│ │    doc_slug = 'dev-portal-admin'                                                                         │                               │
+│ │   docx_path = 'dev-portal-admin.docx'                                                                    │                               │
+│ │     dry_run = False                                                                                      │                               │
+│ │        html = '<html><body><p><a id="_Hlk161748796"></a>АО "НТЦ ИТ РОСА"<a id="_Hlk153978459"><'+72631   │                               │
+│ │         idx = 1                                                                                          │                               │
+│ │  images_dir = PosixPath('output_dir/images')                                                             │                               │
+│ │       model = 'open-mistral-7b'                                                                          │                               │
+│ │  output_dir = 'output_dir'                                                                               │                               │
+│ │ output_path = PosixPath('output_dir')                                                                    │                               │
+│ │    progress = <rich.progress.Progress object at 0x793251ad4b90>                                          │                               │
+│ │    provider = 'mistral'                                                                                  │                               │
+│ │  rules_path = PosixPath('/home/spec/work/rosa/beautiful/formatting_rules.md')                            │                               │
+│ │ samples_dir = PosixPath('/home/spec/work/rosa/beautiful/samples')                                        │                               │
+│ │   style_map = PosixPath('/home/spec/work/rosa/beautiful/src/doc2md/mammoth_style_map.map')               │                               │
+│ │        task = 0                                                                                          │                               │
+│ ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────╯                               │
+│                                                                                                                                            │
+│ /home/spec/work/rosa/beautiful/src/doc2md/llm_client.py:115 in format_chapter                                                              │
+│                                                                                                                                            │
+│   112 │   │   │   │   time.sleep(delay)                                                                                                    │
+│   113 │   │   │   │   delay *= 2                                                                                                           │
+│   114 │   │   │   │   continue                                                                                                             │
+│ ❱ 115 │   │   │   response.raise_for_status()                                                                                              │
+│   116 │   │   │   try:                                                                                                                     │
+│   117 │   │   │   │   data = response.json()                                                                                               │
+│   118 │   │   │   except json.JSONDecodeError as exc:                                                                                      │
+│                                                                                                                                            │
+│ ╭──────────────────────────────────────────────────────────────── locals ────────────────────────────────────────────────────────────────╮ │
+│ │      attempt = 0                                                                                                                       │ │
+│ │ chapter_html = '<h1>4 Установка и запуск комплекса</h1>Установка Комплекса осуществляется на сер'+12753                                │ │
+│ │        delay = 1                                                                                                                       │ │
+│ │      headers = {                                                                                                                       │ │
+│ │                │   'Authorization': 'Bearer Dd5cFHmOUBqvmIFesuIqrBMwgXMf267s',                                                         │ │
+│ │                │   'Accept': 'application/json',                                                                                       │ │
+│ │                │   'Content-Type': 'application/json'                                                                                  │ │
+│ │                }                                                                                                                       │ │
+│ │     messages = [                                                                                                                       │ │
+│ │                │   {                                                                                                                   │ │
+│ │                │   │   'role': 'system',                                                                                               │ │
+│ │                │   │   'content': 'You are an expert DOCX to Markdown converter. Follow all rules precisely.\n\nIMPOR'+48431           │ │
+│ │                │   },                                                                                                                  │ │
+│ │                │   {                                                                                                                   │ │
+│ │                │   │   'role': 'user',                                                                                                 │ │
+│ │                │   │   'content': 'Convert this chapter HTML to Markdown.\n\nReturn ONLY a valid JSON object with exa'+13197           │ │
+│ │                │   }                                                                                                                   │ │
+│ │                ]                                                                                                                       │ │
+│ │      payload = {                                                                                                                       │ │
+│ │                │   'model': 'open-mistral-7b',                                                                                         │ │
+│ │                │   'messages': [                                                                                                       │ │
+│ │                │   │   {                                                                                                               │ │
+│ │                │   │   │   'role': 'system',                                                                                           │ │
+│ │                │   │   │   'content': 'You are an expert DOCX to Markdown converter. Follow all rules precisely.\n\nIMPOR'+48431       │ │
+│ │                │   │   },                                                                                                              │ │
+│ │                │   │   {                                                                                                               │ │
+│ │                │   │   │   'role': 'user',                                                                                             │ │
+│ │                │   │   │   'content': 'Convert this chapter HTML to Markdown.\n\nReturn ONLY a valid JSON object with exa'+13197       │ │
+│ │                │   │   }                                                                                                               │ │
+│ │                │   ],                                                                                                                  │ │
+│ │                │   'temperature': 0.0,                                                                                                 │ │
+│ │                │   'seed': 42,                                                                                                         │ │
+│ │                │   'response_format': {'type': 'json_object'}                                                                          │ │
+│ │                }                                                                                                                       │ │
+│ │     response = <Response [422 Unprocessable Entity]>                                                                                   │ │
+│ │         self = <doc2md.llm_client.MistralClient object at 0x793251b97920>                                                              │ │
+│ ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯ │
+│                                                                                                                                            │
+│ /home/spec/work/rosa/beautiful/.venv/lib/python3.12/site-packages/httpx/_models.py:829 in raise_for_status                                 │
+│                                                                                                                                            │
+│    826 │   │   }                                                                                                                           │
+│    827 │   │   error_type = error_types.get(status_class, "Invalid status code")                                                           │
+│    828 │   │   message = message.format(self, error_type=error_type)                                                                       │
+│ ❱  829 │   │   raise HTTPStatusError(message, request=request, response=self)                                                              │
+│    830 │                                                                                                                                   │
+│    831 │   def json(self, **kwargs: typing.Any) -> typing.Any:                                                                             │
+│    832 │   │   return jsonlib.loads(self.content, **kwargs)                                                                                │
+│                                                                                                                                            │
+│ ╭────────────────────────────────────────────────── locals ──────────────────────────────────────────────────╮                             │
+│ │   error_type = 'Client error'                                                                              │                             │
+│ │  error_types = {1: 'Informational response', 3: 'Redirect response', 4: 'Client error', 5: 'Server error'} │                             │
+│ │      message = "Client error '422 Unprocessable Entity' for url 'https://api.mistral.ai/v1/chat/"+101      │                             │
+│ │      request = <Request('POST', 'https://api.mistral.ai/v1/chat/completions')>                             │                             │
+│ │         self = <Response [422 Unprocessable Entity]>                                                       │                             │
+│ │ status_class = 4                                                                                           │                             │
+│ ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯                             │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+HTTPStatusError: Client error '422 Unprocessable Entity' for url 'https://api.mistral.ai/v1/chat/completions'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/422
+(.venv) spec@spec-mvd:~/work/rosa/beautiful$ 
