@@ -183,3 +183,64 @@ def test_missing_intermediate_heading(monkeypatch, tmp_path) -> None:
     assert chapters[0].startswith("<h1>1 Intro</h1>")
     assert "Conclusion" not in chapters[0]
     assert chapters[1].startswith("<h1>2 Conclusion</h1>")
+
+
+def test_global_content_filtering(monkeypatch, tmp_path) -> None:
+    """Global content like copyright and support info should be filtered from last chapter."""
+
+    html = """<h1>Chapter 1</h1><p>Content 1</p>
+    <h1>Chapter 2</h1><p>Content 2</p>
+    <p>Техническая поддержка: support@example.com</p>
+    <p>© 2024 Все права защищены</p>"""
+
+    monkeypatch.setattr(
+        "doc2md.splitter.extract_main_chapters_from_docx",
+        lambda _path: ["Chapter 1", "Chapter 2"],
+    )
+
+    dummy = tmp_path / "dummy.docx"
+    dummy.write_text("temp")
+
+    chapters = split_html_using_docx_structure(html, str(dummy))
+
+    assert len(chapters) == 2
+    
+    # Chapter 1 should have its content
+    assert "Content 1" in chapters[0]
+    assert "техническая поддержка" not in chapters[0].lower()
+    assert "все права защищены" not in chapters[0].lower()
+    
+    # Chapter 2 should have its content but NOT the global footer
+    assert "Content 2" in chapters[1]
+    assert "техническая поддержка" not in chapters[1].lower()
+    assert "все права защищены" not in chapters[1].lower()
+
+
+def test_toc_global_content_filtering() -> None:
+    """Global content should also be filtered when using TOC anchor splitting."""
+    html_content = """
+    <html>
+    <body>
+        <p><a id="_Toc123"></a>1 Первая глава</p>
+        <p>Content of chapter 1</p>
+        <p><a id="_Toc124"></a>2 Вторая глава</p>
+        <p>Content of chapter 2</p>
+        <p>Техническая поддержка: support@example.com</p>
+        <p>© 2024 Все права защищены</p>
+    </body>
+    </html>
+    """
+
+    chapters = split_html_by_h1(html_content)
+
+    assert len(chapters) == 2
+
+    # Chapter 1 should have its content
+    assert "Content of chapter 1" in chapters[0]
+    assert "техническая поддержка" not in chapters[0].lower()
+    assert "все права защищены" not in chapters[0].lower()
+    
+    # Chapter 2 should have its content but NOT the global footer
+    assert "Content of chapter 2" in chapters[1]
+    assert "техническая поддержка" not in chapters[1].lower()
+    assert "все права защищены" not in chapters[1].lower()

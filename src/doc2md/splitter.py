@@ -90,6 +90,11 @@ def _split_by_toc_anchors(soup: BeautifulSoup) -> List[str]:
             ):
                 break
 
+            # Stop collecting content if we've moved too far from the chapter heading
+            # This prevents including global footer content in the last chapter
+            if not next_marker_parent and _is_likely_global_content(current_element):
+                break
+
             chapter_parts.append(str(current_element))
 
         if chapter_parts:
@@ -138,6 +143,71 @@ def _is_major_section_heading(text: str) -> bool:
             if len(clean_text.split()) <= 4:
                 return True
 
+    return False
+
+
+def _is_likely_global_content(element) -> bool:
+    """
+    Check if an element is likely to be global document content
+    that shouldn't be included in any specific chapter.
+    
+    This helps prevent global footers, references, or other 
+    document-wide content from being included in the last chapter.
+    """
+    if not hasattr(element, 'get_text'):
+        return False
+    
+    text = element.get_text(strip=True).lower()
+    
+    # Check for global content patterns
+    global_patterns = [
+        # Footer-like content
+        'все права защищены',
+        'copyright',
+        '© ',
+        'все торговые марки',
+        
+        # Reference sections
+        'список литературы',
+        'библиография',
+        'источники',
+        'references',
+        
+        # Document metadata
+        'версия документа',
+        'дата создания',
+        'дата изменения',
+        'номер версии',
+        
+        # Contact info
+        'техническая поддержка',
+        'служба поддержки',
+        'обратная связь',
+        'контактная информация',
+        
+        # Legal disclaimers
+        'отказ от ответственности',
+        'disclaimer',
+        'условия использования',
+        'пользовательское соглашение'
+    ]
+    
+    # If the text matches global patterns, it's likely global content
+    for pattern in global_patterns:
+        if pattern in text:
+            return True
+    
+    # Additional heuristics:
+    # 1. Very short content at the end might be global
+    if len(text) < 20 and any(word in text for word in ['©', 'все права', 'version']):
+        return True
+    
+    # 2. Content that appears to be page numbers or document references
+    if len(text.split()) <= 3 and any(char.isdigit() for char in text):
+        # Check if it looks like "стр. 15" or "версия 1.0"
+        if any(word in text for word in ['стр', 'page', 'версия', 'version']):
+            return True
+    
     return False
 
 
@@ -205,79 +275,158 @@ def extract_headings_from_docx(docx_path: str) -> List[Dict]:
 def split_html_using_docx_structure(html_content: str, docx_path: str) -> List[str]:
     """
     Split HTML using heading structure extracted from original DOCX file.
-
-    This provides a more accurate splitting by using the original document's
-    heading structure rather than trying to parse converted HTML.
+    
+    FIXED VERSION: Extracts all main chapters and properly splits content.
     """
     if not Path(docx_path).exists():
         # Fall back to HTML-only approach
         return split_html_by_h1(html_content)
 
-    # Extract main chapters from DOCX using the new algorithm
-    main_chapters = extract_main_chapters_from_docx(docx_path)
-    if not main_chapters:
+    # Extract all main chapters from DOCX
+    main_chapters_info = extract_main_chapters_from_docx_with_position(docx_path)
+    if not main_chapters_info:
         print(
             f"Warning: No main chapters found in {docx_path}, falling back to HTML parsing"
         )
         return split_html_by_h1(html_content)
 
+    main_chapters = [chapter['title'] for chapter in main_chapters_info]
     print(f"Found {len(main_chapters)} main chapters in DOCX: {main_chapters}")
 
-    # Now split HTML based on these main chapter headings
+    # Parse HTML
     soup = BeautifulSoup(html_content, "lxml")
-    chapters: List[str] = []
-
-    # First, locate heading elements for all chapters sequentially to avoid
-    # picking earlier mentions of the chapter title in the document body.
-    heading_tags: List[Tag] = []
-    for title in main_chapters:
-        pattern = re.compile(re.escape(title), re.IGNORECASE)
-        if heading_tags:
-            text_node = heading_tags[-1].find_next(string=pattern)
+    
+    # Find heading elements for each chapter
+    heading_elements = []
+    for chapter_info in main_chapters_info:
+        title = chapter_info['title']
+        
+        # Find the actual heading element in HTML with multiple strategies
+        found_element = None
+        all_elements = soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p'])
+        
+        # Strategy 1: Exact match
+        for elem in all_elements:
+            elem_text = elem.get_text(strip=True)
+            if elem_text == title:
+                # Skip table of contents entries (contain page numbers or tabs)
+                if not re.search(r'\t\d+\s*$', elem_text) and 'toc' not in elem.get('class', []):
+                    found_element = elem
+                    break
+        
+        # Strategy 2: Partial match for numbered headings
+        if not found_element:
+            for elem in all_elements:
+                elem_text = elem.get_text(strip=True)
+                if title in elem_text and len(elem_text) - len(title) < 20:
+                    if not re.search(r'\t\d+\s*$', elem_text) and 'toc' not in elem.get('class', []):
+                        found_element = elem
+                        break
+        
+        # Strategy 3: Search for text nodes containing the title
+        if not found_element:
+            pattern = re.compile(re.escape(title), re.IGNORECASE)
+            for text_node in soup.find_all(string=pattern):
+                parent = text_node.find_parent(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p'])
+                if parent:
+                    parent_text = parent.get_text(strip=True)
+                    # Avoid table of contents
+                    if not re.search(r'\t\d+\s*$', parent_text) and len(parent_text.split()) <= 10:
+                        found_element = parent
+                        break
+        
+        # Strategy 4: Search for TOC anchors near the title text
+        if not found_element:
+            # Look for anchors with IDs like _Toc... that might be near our title
+            toc_anchors = soup.find_all('a', id=re.compile(r'_Toc\d+'))
+            for anchor in toc_anchors:
+                # Check text after the anchor
+                next_text = anchor.next_sibling
+                if isinstance(next_text, str) and title in next_text:
+                    parent = anchor.find_parent(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'])
+                    if parent:
+                        found_element = parent
+                        break
+        
+        # Strategy 5: Fuzzy search based on keywords from title
+        if not found_element:
+            title_words = title.lower().split()
+            for elem in all_elements:
+                elem_text = elem.get_text(strip=True).lower()
+                # Check if most title words are present
+                matches = sum(1 for word in title_words if word in elem_text)
+                if matches >= len(title_words) * 0.7:  # 70% match
+                    if not re.search(r'\t\d+\s*$', elem_text) and len(elem_text.split()) <= 15:
+                        found_element = elem
+                        break
+        
+        if found_element:
+            heading_elements.append((chapter_info, found_element))
+            print(f"Found heading for '{title}' in <{found_element.name}>")
         else:
-            text_node = soup.find(string=pattern)
-
-        if not text_node:
-            print(f"Warning: Could not find chapter '{title}' in HTML content")
-            continue
-
-        parent = text_node.find_parent(["p", "h1", "h2", "h3", "h4", "h5", "h6"])
-        if not isinstance(parent, Tag):
-            print(f"Warning: Could not determine tag for chapter '{title}'")
-            continue
-
-        heading_tags.append(parent)
-
-    if not heading_tags:
-        return split_html_by_h1(html_content)
-
-    # Build chapter fragments using located heading elements
-    for i, heading_tag in enumerate(heading_tags):
-        next_heading: Optional[Tag] = (
-            heading_tags[i + 1] if i + 1 < len(heading_tags) else None
-        )
-
-        # Prepare heading HTML with sequential numbering
-        heading_text = heading_tag.get_text(strip=True)
-        heading_html = f"<h1>{i + 1} {heading_text}</h1>"
-        chapter_parts = [heading_html]
-
-        current_element: PageElement = heading_tag
-        while current_element.next_sibling:
-            current_element = current_element.next_sibling
-
-            # Skip whitespace-only text nodes
-            if isinstance(current_element, str) and not current_element.strip():
-                continue
-
-            if next_heading and current_element is next_heading:
+            print(f"Warning: Could not find heading for '{title}' in HTML")
+    
+    if not heading_elements:
+        print("No heading elements found, trying fallback approach")
+        # Fallback: use any H1 tags found in HTML
+        h1_elements = soup.find_all('h1')
+        if h1_elements:
+            print(f"Found {len(h1_elements)} H1 elements for fallback")
+            for i, h1 in enumerate(h1_elements):
+                heading_elements.append(({'title': h1.get_text(strip=True), 'position': i}, h1))
+        else:
+            return split_html_by_h1(html_content)
+    
+    # Sort by document order
+    def element_position(elem_tuple):
+        _, element = elem_tuple
+        return list(soup.descendants).index(element)
+    
+    heading_elements.sort(key=element_position)
+    
+    # Split content between headings
+    chapters = []
+    for i, (chapter_info, heading_element) in enumerate(heading_elements):
+        next_heading_element = heading_elements[i + 1][1] if i + 1 < len(heading_elements) else None
+        
+        chapter_content = []
+        
+        # Add chapter heading with numbering
+        chapter_content.append(f"<h1>{i + 1} {chapter_info['title']}</h1>")
+        
+        # Collect all content between this heading and the next
+        current = heading_element
+        collected_elements = set()  # Track what we've collected to avoid duplicates
+        
+        # Collect all siblings after the heading
+        current = heading_element.next_sibling
+        while current:
+            if not current:
                 break
-
-            chapter_parts.append(str(current_element))
-
-        chapters.append("".join(chapter_parts))
-
-    return chapters if chapters else split_html_by_h1(html_content)
+            
+            # Stop if we reach the next chapter heading
+            if next_heading_element and current == next_heading_element:
+                break
+            
+            # Skip whitespace-only text nodes
+            if isinstance(current, str) and not current.strip():
+                current = current.next_sibling
+                continue
+            
+            # Avoid duplicate elements
+            if id(current) not in collected_elements:
+                chapter_content.append(str(current))
+                collected_elements.add(id(current))
+            
+            current = current.next_sibling
+        
+        # Join chapter content
+        chapter_html = "".join(chapter_content)
+        chapters.append(chapter_html)
+        
+        print(f"Chapter {i + 1} '{chapter_info['title']}' content length: {len(chapter_html)} chars")
+    
+    return chapters
 
 
 def _analyze_heading_styles(docx: zipfile.ZipFile) -> Dict[str, Dict]:
@@ -454,6 +603,41 @@ def _extract_heading_from_paragraph(
         "is_main_chapter": style_info["is_main_chapter"],
         "paragraph_index": para_index,
     }
+
+
+def extract_main_chapters_from_docx_with_position(docx_path: str, limit: int = None) -> List[Dict]:
+    """
+    Извлекает основные главы (первого уровня) из DOCX документа.
+    
+    Возвращает список словарей с информацией о главах включая их позицию.
+    Если limit указан, возвращает только первые N глав.
+    """
+    try:
+        all_headings = extract_headings_from_docx(docx_path)
+        
+        # Фильтруем только основные главы
+        main_chapters = []
+        for heading in all_headings:
+            if (heading["is_main_chapter"] and 
+                heading["level"] == 1 and 
+                _is_meaningful_chapter_heading(heading["text"])):
+                main_chapters.append({
+                    'title': heading["text"],
+                    'position': heading["paragraph_index"],
+                    'style': heading["style"]
+                })
+        
+        # Сортируем по позиции в документе
+        main_chapters.sort(key=lambda x: x['position'])
+        
+        # Применяем ограничение только если оно задано
+        if limit is not None:
+            return main_chapters[:limit]
+        return main_chapters
+        
+    except Exception as e:
+        print(f"Warning: Could not extract main chapters with position: {e}")
+        return []
 
 
 def extract_main_chapters_from_docx(docx_path: str) -> List[str]:
