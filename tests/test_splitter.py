@@ -162,3 +162,24 @@ def test_split_html_using_docx_structure_sequential(monkeypatch, tmp_path) -> No
     assert chapters[1].startswith("<h1>2 Вторая глава</h1>")
     assert "A" not in chapters[1]
     assert chapters[2].startswith("<h1>3 Третья глава</h1>")
+
+
+def test_missing_intermediate_heading(monkeypatch, tmp_path) -> None:
+    """If a chapter title isn't found, previous chapter should end at next available heading."""
+
+    html = "<h1>Intro</h1><p>A</p><h1>Conclusion</h1><p>B</p>"
+
+    monkeypatch.setattr(
+        "doc2md.splitter.extract_main_chapters_from_docx",
+        lambda _path: ["Intro", "Middle", "Conclusion"],
+    )
+
+    dummy = tmp_path / "dummy.docx"
+    dummy.write_text("temp")
+
+    chapters = split_html_using_docx_structure(html, str(dummy))
+
+    assert len(chapters) == 2
+    assert chapters[0].startswith("<h1>1 Intro</h1>")
+    assert "Conclusion" not in chapters[0]
+    assert chapters[1].startswith("<h1>2 Conclusion</h1>")

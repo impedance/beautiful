@@ -229,16 +229,11 @@ def split_html_using_docx_structure(html_content: str, docx_path: str) -> List[s
 
     # First, locate heading elements for all chapters sequentially to avoid
     # picking earlier mentions of the chapter title in the document body.
-    heading_elements: List[tuple[str, Optional[Tag]]] = []
+    heading_tags: List[Tag] = []
     for title in main_chapters:
         pattern = re.compile(re.escape(title), re.IGNORECASE)
-        if heading_elements:
-            previous = heading_elements[-1][1]
-            text_node = (
-                previous.find_next(string=pattern)
-                if previous
-                else soup.find(string=pattern)
-            )
+        if heading_tags:
+            text_node = heading_tags[-1].find_next(string=pattern)
         else:
             text_node = soup.find(string=pattern)
 
@@ -247,19 +242,19 @@ def split_html_using_docx_structure(html_content: str, docx_path: str) -> List[s
             continue
 
         parent = text_node.find_parent(["p", "h1", "h2", "h3", "h4", "h5", "h6"])
-        heading_tag = parent if isinstance(parent, Tag) else None
-        heading_elements.append((title, heading_tag))
+        if not isinstance(parent, Tag):
+            print(f"Warning: Could not determine tag for chapter '{title}'")
+            continue
 
-    if not heading_elements:
+        heading_tags.append(parent)
+
+    if not heading_tags:
         return split_html_by_h1(html_content)
 
     # Build chapter fragments using located heading elements
-    for i, (title, heading_tag) in enumerate(heading_elements):
-        if heading_tag is None:
-            continue
-
-        next_heading = (
-            heading_elements[i + 1][1] if i + 1 < len(heading_elements) else None
+    for i, heading_tag in enumerate(heading_tags):
+        next_heading: Optional[Tag] = (
+            heading_tags[i + 1] if i + 1 < len(heading_tags) else None
         )
 
         # Prepare heading HTML with sequential numbering
@@ -275,7 +270,7 @@ def split_html_using_docx_structure(html_content: str, docx_path: str) -> List[s
             if isinstance(current_element, str) and not current_element.strip():
                 continue
 
-            if next_heading and current_element == next_heading:
+            if next_heading and current_element is next_heading:
                 break
 
             chapter_parts.append(str(current_element))
