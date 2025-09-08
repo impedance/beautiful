@@ -20,3 +20,117 @@ def test_split_html_by_h1_empty_html_returns_empty_list() -> None:
     """Test that empty HTML returns empty list."""
     chapters = split_html_by_h1("")
     assert len(chapters) == 0
+
+
+def test_document_with_styled_headings_not_detected() -> None:
+    """Test that styled headings without TOC anchors are not detected as chapters."""
+    html_content = """
+    <html>
+    <body>
+        <p><strong>ПЛАТФОРМА УПРАВЛЕНИЯ ГИБРИДНОЙ ИНФРАСТРУКТУРОЙ</strong></p>
+        <p>Some heading text</p>
+        <p>Content here</p>
+        <p>Another heading</p>
+        <p>More content</p>
+    </body>
+    </html>
+    """
+    
+    chapters = split_html_by_h1(html_content)
+    
+    # Should return empty list since there are no TOC anchors
+    assert len(chapters) == 0
+
+
+def test_split_by_numbered_toc_anchors() -> None:
+    """Test splitting HTML by numbered TOC anchors."""
+    html_content = """
+    <html>
+    <body>
+        <p>Introduction text</p>
+        <p><a id="_Toc193363120"></a>1 Общие сведения</p>
+        <p>Content of chapter 1</p>
+        <p>More content for chapter 1</p>
+        <p><a id="_Toc193363121"></a>2 Установка и настройка</p>
+        <p>Content of chapter 2</p>
+        <h2>Subsection in chapter 2</h2>
+        <p><a id="_Toc193363122"></a>3 Веб-интерфейс</p>
+        <p>Content of chapter 3</p>
+    </body>
+    </html>
+    """
+    
+    chapters = split_html_by_h1(html_content)
+    
+    # Should return 3 chapters
+    assert len(chapters) == 3
+    
+    # First chapter should contain anchor and content until next chapter
+    assert '_Toc193363120' in chapters[0]
+    assert 'Общие сведения' in chapters[0]
+    assert 'Content of chapter 1' in chapters[0]
+    assert 'More content for chapter 1' in chapters[0]
+    assert '2 Установка' not in chapters[0]
+    
+    # Second chapter should contain its anchor and content
+    assert '_Toc193363121' in chapters[1]
+    assert '2 Установка и настройка' in chapters[1]
+    assert 'Content of chapter 2' in chapters[1]
+    assert 'Subsection in chapter 2' in chapters[1]
+    assert '3 Веб-интерфейс' not in chapters[1]
+    
+    # Third chapter should contain its content
+    assert '_Toc193363122' in chapters[2]
+    assert '3 Веб-интерфейс' in chapters[2]
+    assert 'Content of chapter 3' in chapters[2]
+
+
+def test_split_by_major_section_toc_anchors() -> None:
+    """Test splitting HTML by major section TOC anchors (like in real ROSA document)."""
+    html_content = """
+    <html>
+    <body>
+        <p>Table of contents and intro</p>
+        <p><a id="_Toc193363120"></a>Общие сведения</p>
+        <p>Content about general information</p>
+        <p>More details</p>
+        <p><a id="_Toc193363126"></a>Установка и настройка</p>
+        <p>Installation content</p>
+        <h2>Configuration subsection</h2>
+        <p><a id="_Toc193363127"></a>Веб-интерфейс</p>
+        <p>Web interface description</p>
+        <p><a id="_Toc193363128"></a>API</p>
+        <p>API documentation</p>
+    </body>
+    </html>
+    """
+    
+    chapters = split_html_by_h1(html_content)
+    
+    # Should return 4 chapters
+    assert len(chapters) == 4
+    
+    # First chapter - General information
+    assert '_Toc193363120' in chapters[0]
+    assert 'Общие сведения' in chapters[0]
+    assert 'Content about general information' in chapters[0]
+    assert 'More details' in chapters[0]
+    assert 'Установка и настройка' not in chapters[0]
+    
+    # Second chapter - Installation
+    assert '_Toc193363126' in chapters[1]
+    assert 'Установка и настройка' in chapters[1]
+    assert 'Installation content' in chapters[1]
+    assert 'Configuration subsection' in chapters[1]
+    assert 'Веб-интерфейс' not in chapters[1]
+    
+    # Third chapter - Web interface
+    assert '_Toc193363127' in chapters[2]
+    assert 'Веб-интерфейс' in chapters[2]
+    assert 'Web interface description' in chapters[2]
+    assert 'API' not in chapters[2]
+    
+    # Fourth chapter - API
+    assert '_Toc193363128' in chapters[3]
+    assert 'API' in chapters[3]
+    assert 'API documentation' in chapters[3]

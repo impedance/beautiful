@@ -70,13 +70,16 @@ def run(
     html = preprocess.convert_docx_to_html(docx_path, str(style_map))
     # Remove table of contents to clean up the document
     html = preprocess.remove_table_of_contents(html)
-    chapters = splitter.split_html_by_h1(html)
+    
+    # Try DOCX-based splitting first (more accurate), fallback to HTML-only approach
+    try:
+        chapters = splitter.split_html_using_docx_structure(html, docx_path)
+        console.print(f"[green]Using DOCX structure for chapter splitting[/]")
+    except Exception as e:
+        console.print(f"[yellow]Warning: DOCX-based splitting failed: {e}[/]")
+        console.print(f"[yellow]Falling back to HTML-only splitting[/]")
+        chapters = splitter.split_html_by_h1(html)
 
-    # Temporary fix: only send the 4th chapter to the model
-    if len(chapters) >= 4:
-        chapters = [chapters[3]]
-    else:
-        chapters = []
 
     if dry_run:
         temp_dir = output_path / "html"
