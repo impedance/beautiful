@@ -1,4 +1,4 @@
-from doc2md.splitter import split_html_by_h1
+from doc2md.splitter import split_html_by_h1, split_html_using_docx_structure
 
 
 def test_split_html_by_h1_splits_content() -> None:
@@ -35,9 +35,9 @@ def test_document_with_styled_headings_not_detected() -> None:
     </body>
     </html>
     """
-    
+
     chapters = split_html_by_h1(html_content)
-    
+
     # Should return empty list since there are no TOC anchors
     assert len(chapters) == 0
 
@@ -59,30 +59,30 @@ def test_split_by_numbered_toc_anchors() -> None:
     </body>
     </html>
     """
-    
+
     chapters = split_html_by_h1(html_content)
-    
+
     # Should return 3 chapters
     assert len(chapters) == 3
-    
+
     # First chapter should contain anchor and content until next chapter
-    assert '_Toc193363120' in chapters[0]
-    assert 'Общие сведения' in chapters[0]
-    assert 'Content of chapter 1' in chapters[0]
-    assert 'More content for chapter 1' in chapters[0]
-    assert '2 Установка' not in chapters[0]
-    
+    assert "_Toc193363120" in chapters[0]
+    assert "Общие сведения" in chapters[0]
+    assert "Content of chapter 1" in chapters[0]
+    assert "More content for chapter 1" in chapters[0]
+    assert "2 Установка" not in chapters[0]
+
     # Second chapter should contain its anchor and content
-    assert '_Toc193363121' in chapters[1]
-    assert '2 Установка и настройка' in chapters[1]
-    assert 'Content of chapter 2' in chapters[1]
-    assert 'Subsection in chapter 2' in chapters[1]
-    assert '3 Веб-интерфейс' not in chapters[1]
-    
+    assert "_Toc193363121" in chapters[1]
+    assert "2 Установка и настройка" in chapters[1]
+    assert "Content of chapter 2" in chapters[1]
+    assert "Subsection in chapter 2" in chapters[1]
+    assert "3 Веб-интерфейс" not in chapters[1]
+
     # Third chapter should contain its content
-    assert '_Toc193363122' in chapters[2]
-    assert '3 Веб-интерфейс' in chapters[2]
-    assert 'Content of chapter 3' in chapters[2]
+    assert "_Toc193363122" in chapters[2]
+    assert "3 Веб-интерфейс" in chapters[2]
+    assert "Content of chapter 3" in chapters[2]
 
 
 def test_split_by_major_section_toc_anchors() -> None:
@@ -104,33 +104,61 @@ def test_split_by_major_section_toc_anchors() -> None:
     </body>
     </html>
     """
-    
+
     chapters = split_html_by_h1(html_content)
-    
+
     # Should return 4 chapters
     assert len(chapters) == 4
-    
+
     # First chapter - General information
-    assert '_Toc193363120' in chapters[0]
-    assert 'Общие сведения' in chapters[0]
-    assert 'Content about general information' in chapters[0]
-    assert 'More details' in chapters[0]
-    assert 'Установка и настройка' not in chapters[0]
-    
+    assert "_Toc193363120" in chapters[0]
+    assert "Общие сведения" in chapters[0]
+    assert "Content about general information" in chapters[0]
+    assert "More details" in chapters[0]
+    assert "Установка и настройка" not in chapters[0]
+
     # Second chapter - Installation
-    assert '_Toc193363126' in chapters[1]
-    assert 'Установка и настройка' in chapters[1]
-    assert 'Installation content' in chapters[1]
-    assert 'Configuration subsection' in chapters[1]
-    assert 'Веб-интерфейс' not in chapters[1]
-    
+    assert "_Toc193363126" in chapters[1]
+    assert "Установка и настройка" in chapters[1]
+    assert "Installation content" in chapters[1]
+    assert "Configuration subsection" in chapters[1]
+    assert "Веб-интерфейс" not in chapters[1]
+
     # Third chapter - Web interface
-    assert '_Toc193363127' in chapters[2]
-    assert 'Веб-интерфейс' in chapters[2]
-    assert 'Web interface description' in chapters[2]
-    assert 'API' not in chapters[2]
-    
+    assert "_Toc193363127" in chapters[2]
+    assert "Веб-интерфейс" in chapters[2]
+    assert "Web interface description" in chapters[2]
+    assert "API" not in chapters[2]
+
     # Fourth chapter - API
-    assert '_Toc193363128' in chapters[3]
-    assert 'API' in chapters[3]
-    assert 'API documentation' in chapters[3]
+    assert "_Toc193363128" in chapters[3]
+    assert "API" in chapters[3]
+    assert "API documentation" in chapters[3]
+
+
+def test_split_html_using_docx_structure_sequential(monkeypatch, tmp_path) -> None:
+    """Ensure sequential search prevents earlier references affecting splitting."""
+
+    html = (
+        "<p>См. раздел 'Вторая глава' ниже</p>"
+        "<p>Введение</p>"
+        "<p>Еще текст</p>"
+        "<h1>Первая глава</h1><p>A</p>"
+        "<h1>Вторая глава</h1><p>B</p>"
+        "<h1>Третья глава</h1><p>C</p>"
+    )
+
+    monkeypatch.setattr(
+        "doc2md.splitter.extract_main_chapters_from_docx",
+        lambda _path: ["Первая глава", "Вторая глава", "Третья глава"],
+    )
+
+    dummy = tmp_path / "dummy.docx"
+    dummy.write_text("temp")
+    chapters = split_html_using_docx_structure(html, str(dummy))
+
+    assert len(chapters) == 3
+    assert chapters[0].startswith("<h1>1 Первая глава</h1>")
+    assert chapters[1].startswith("<h1>2 Вторая глава</h1>")
+    assert "A" not in chapters[1]
+    assert chapters[2].startswith("<h1>3 Третья глава</h1>")
