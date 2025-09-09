@@ -146,6 +146,45 @@ def _is_major_section_heading(text: str) -> bool:
     return False
 
 
+def _is_toc_or_navigation_content(text: str) -> bool:
+    """
+    Проверяет, является ли текст содержимым оглавления или навигационными элементами.
+    
+    Такой контент должен быть исключен из глав.
+    """
+    if not text:
+        return False
+        
+    text_lower = text.lower().strip()
+    
+    # Проверяем на содержание оглавления
+    toc_patterns = [
+        'содержание',
+        'оглавление', 
+        'table of contents',
+        'toc',
+    ]
+    
+    # Если текст начинается с паттернов оглавления
+    if any(text_lower.startswith(pattern) for pattern in toc_patterns):
+        return True
+    
+    # Проверяем на наличие табуляций с номерами страниц (характерно для TOC)
+    if re.search(r'\t+\d+\s*$', text) or re.search(r'\.{3,}\s*\d+\s*$', text):
+        return True
+    
+    # Проверяем на множественные ссылки на разделы подряд
+    if text.count('href="#') > 3:  # Много ссылок подряд - скорее всего TOC
+        return True
+    
+    # Проверяем на нумерованные разделы с точками (1.1, 1.2, etc.)
+    section_numbers = re.findall(r'\d+\.\d+', text)
+    if len(section_numbers) > 2:  # Много номеров разделов
+        return True
+    
+    return False
+
+
 def _is_likely_global_content(element) -> bool:
     """
     Check if an element is likely to be global document content
@@ -276,7 +315,7 @@ def split_html_using_docx_structure(html_content: str, docx_path: str) -> List[s
     """
     Split HTML using heading structure extracted from original DOCX file.
     
-    FIXED VERSION: Extracts all main chapters and properly splits content.
+    UNIVERSAL VERSION: Preserves original chapter titles and handles all heading levels.
     """
     if not Path(docx_path).exists():
         # Fall back to HTML-only approach
@@ -331,7 +370,7 @@ def split_html_using_docx_structure(html_content: str, docx_path: str) -> List[s
                 if parent:
                     parent_text = parent.get_text(strip=True)
                     # Avoid table of contents
-                    if not re.search(r'\t\d+\s*$', parent_text) and len(parent_text.split()) <= 10:
+                    if not re.search(r'\t\d+\s*$', parent_text) and len(parent_text.split()) <= 15:
                         found_element = parent
                         break
         
@@ -384,44 +423,56 @@ def split_html_using_docx_structure(html_content: str, docx_path: str) -> List[s
     
     heading_elements.sort(key=element_position)
     
-    # Split content between headings
+    # Split content between headings - IMPROVED VERSION
     chapters = []
     for i, (chapter_info, heading_element) in enumerate(heading_elements):
         next_heading_element = heading_elements[i + 1][1] if i + 1 < len(heading_elements) else None
         
         chapter_content = []
         
-        # Add chapter heading with numbering
-        chapter_content.append(f"<h1>{i + 1} {chapter_info['title']}</h1>")
+        # CREATE CONSISTENT H1 HEADING - always use clean original title
+        original_title = chapter_info['title']
+        chapter_content.append(f"<h1>{original_title}</h1>")
         
         # Collect all content between this heading and the next
-        current = heading_element
-        collected_elements = set()  # Track what we've collected to avoid duplicates
-        
-        # Collect all siblings after the heading
         current = heading_element.next_sibling
+        collected_elements = set([id(heading_element)])  # Track what we've collected to avoid duplicates
+        
         while current:
-            if not current:
-                break
-            
             # Stop if we reach the next chapter heading
             if next_heading_element and current == next_heading_element:
                 break
+                
+            # Check if we've reached a different main chapter by examining text content
+            if next_heading_element and hasattr(current, 'find_all'):
+                # Check if current element contains the next chapter heading
+                if next_heading_element in current.find_all():
+                    break
             
             # Skip whitespace-only text nodes
             if isinstance(current, str) and not current.strip():
                 current = current.next_sibling
                 continue
             
+            # Skip table of contents and other navigational elements
+            if hasattr(current, 'find_all'):
+                # Check if element contains TOC patterns
+                current_text = current.get_text() if hasattr(current, 'get_text') else str(current)
+                if _is_toc_or_navigation_content(current_text):
+                    current = current.next_sibling
+                    continue
+            
             # Avoid duplicate elements
-            if id(current) not in collected_elements:
+            current_id = id(current)
+            if current_id not in collected_elements:
                 chapter_content.append(str(current))
-                collected_elements.add(id(current))
+                collected_elements.add(current_id)
             
             current = current.next_sibling
         
         # Join chapter content
         chapter_html = "".join(chapter_content)
+        
         chapters.append(chapter_html)
         
         print(f"Chapter {i + 1} '{chapter_info['title']}' content length: {len(chapter_html)} chars")
@@ -536,9 +587,8 @@ def _is_main_chapter_style(style_id: str, name: str) -> bool:
     """
     # Для РОСА документов основные главы используют специфические стили
     rosa_main_styles = {
-        "ROSA13",
-        "ROSAf1",
-    }  # ROSA_Заголовок 1, ROSA_Заголовок_Перечень|Приложение
+        "ROSA13",  # ROSA_Заголовок 1 - основной стиль для глав
+    }
     if style_id in rosa_main_styles:
         return True
 
@@ -547,18 +597,31 @@ def _is_main_chapter_style(style_id: str, name: str) -> bool:
     if style_id in standard_main_styles:
         return True
 
-    # Исключаем служебные заголовки (таблицы, аннотации и т.д.)
+    # ИСКЛЮЧАЕМ стили, которые НЕ являются основными главами
+    excluded_style_ids = {
+        "ROSAf1",   # ROSA_Заголовок_Перечень|Приложение - служебные разделы
+        "ROSAff0",  # Служебные заголовки 
+        "ROSAb",    # Аннотация, содержание
+        "ROSAf9",   # Заголовки таблиц (Google Chrome, Yandex Browser и т.д.)
+        "ROSAc",    # Заголовки столбцов таблиц
+    }
+    if style_id in excluded_style_ids:
+        return False
+
+    # Исключаем служебные заголовки по имени
     excluded_patterns = [
         "таблица",
-        "table",
+        "table", 
         "аннотация",
         "annotation",
         "содержание",
         "toc",
         "столбец",
         "column",
-        "перечень",
-        "приложение",
+        "перечень сокращений",  # Конкретно этот раздел
+        "список сокращений",
+        "сокращение",
+        "расшифровка",
     ]
 
     name_lower = name.lower()
@@ -637,6 +700,55 @@ def extract_main_chapters_from_docx_with_position(docx_path: str, limit: int = N
         
     except Exception as e:
         print(f"Warning: Could not extract main chapters with position: {e}")
+        return []
+
+
+def extract_all_headings_with_hierarchy(docx_path: str) -> List[Dict]:
+    """
+    Извлекает ВСЕ заголовки из документа с полной иерархией.
+    
+    Возвращает список всех заголовков любого уровня с информацией о позиции
+    и родительских заголовках. Это поможет обрабатывать глубокую вложенность типа 5.3.1.x.
+    """
+    try:
+        all_headings = extract_headings_from_docx(docx_path)
+        
+        # Добавляем информацию о родительских заголовках
+        headings_with_hierarchy = []
+        parent_stack = []  # Стек родительских заголовков
+        
+        for heading in all_headings:
+            level = heading["level"]
+            
+            # Очищаем стек до текущего уровня
+            while parent_stack and parent_stack[-1]["level"] >= level:
+                parent_stack.pop()
+            
+            # Создаем запись с информацией о иерархии
+            heading_info = {
+                'title': heading["text"],
+                'level': level,
+                'position': heading["paragraph_index"],
+                'style': heading["style"],
+                'is_main_chapter': heading["is_main_chapter"],
+                'parents': [p["title"] for p in parent_stack],  # Список родительских заголовков
+                'parent_positions': [p["position"] for p in parent_stack],
+                'full_path': " > ".join([p["title"] for p in parent_stack] + [heading["text"]])
+            }
+            
+            headings_with_hierarchy.append(heading_info)
+            
+            # Добавляем текущий заголовок в стек родителей
+            parent_stack.append({
+                "title": heading["text"],
+                "level": level,
+                "position": heading["paragraph_index"]
+            })
+        
+        return headings_with_hierarchy
+        
+    except Exception as e:
+        print(f"Warning: Could not extract headings with hierarchy: {e}")
         return []
 
 
